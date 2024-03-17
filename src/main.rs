@@ -1,3 +1,4 @@
+mod c_project;
 mod find_project_files;
 
 fn main() {
@@ -10,6 +11,12 @@ fn main() {
                 Ok(item) if item.client_state => Some(item),
                 _ => None,
             })
-            .for_each(|item| println!("{}", item.path().display()));
+            .for_each(|item| {
+                let mut path = item.path().clone();
+                path.pop();
+                // println!("{}", path.display());
+                c_project::id_temporary_files(path)
+                    .for_each(|file| println!("{}", file.unwrap().path().display()));
+            });
     }
 }

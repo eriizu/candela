@@ -15,7 +15,8 @@ fn sort_predicate(
     }
 }
 
-const PROJ_CONFIG_FILESS: &'static [&'static str] = &["package.json", "cargo.toml", "Makefile"];
+// const PROJ_CONFIG_FILESS: &'static [&'static str] = &["package.json", "cargo.toml", "Makefile"];
+const PROJ_CONFIG_FILESS: &'static [&'static str] = &["Makefile"];
 
 fn is_project_config_file(filename: &std::ffi::OsStr) -> bool {
     if let Ok(filename) = filename.try_into() {
