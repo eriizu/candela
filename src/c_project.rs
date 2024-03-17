@@ -2,8 +2,8 @@ type CustomState = (usize, bool);
 type CustomDirEnt = jwalk::DirEntry<CustomState>;
 
 // TODO: use regexes for matching a whole pannel of files
-// produced files /.+\.(a,out,so)/
-// temporary files /.+\.(?:o|gch)
+// produced files: /.+\.(a,out,so)/
+// temporary files: /.+\.(?:o|gch)/
 
 // INFO: we need to retain .o files and all folders
 fn is_to_retain(dir_entry: &CustomDirEnt) -> bool {
