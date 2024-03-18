@@ -5,14 +5,20 @@ type CustomDirEnt = jwalk::DirEntry<CustomState>;
 // produced files: /.+\.(a,out,so)/
 // temporary files: /.+\.(?:o|gch)/
 
+const ARTEFACTS_PRODUCED: &str = r".+\.(a|out|so)$";
+static RE_ARTEFACTS_PRODUCED: once_cell::sync::Lazy<regex::Regex> =
+    once_cell::sync::Lazy::new(|| regex::Regex::new(ARTEFACTS_PRODUCED).unwrap());
+
+const ARTEFACTS_TEMP: &str = r".+\.(o|gch)$";
+static RE_ARTEFACTS_TEMP: once_cell::sync::Lazy<regex::Regex> =
+    once_cell::sync::Lazy::new(|| regex::Regex::new(ARTEFACTS_TEMP).unwrap());
+
 // INFO: we need to retain .o files and all folders
 fn is_to_retain(dir_entry: &CustomDirEnt) -> bool {
-    dir_entry.file_type().is_dir()
-        || dir_entry
-            .file_name
-            .to_str()
-            .map(|s| s.ends_with(".o"))
-            .unwrap_or(false)
+    let Some(file_name) = dir_entry.file_name().to_str() else {
+        return false;
+    };
+    dir_entry.file_type().is_dir() || RE_ARTEFACTS_TEMP.is_match(file_name)
 }
 
 pub fn id_temporary_files(
