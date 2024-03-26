@@ -77,7 +77,7 @@ fn tag_file(dir_entry: &mut CustomDirEnt) {
 }
 
 pub fn id_temporary_files(
-    dir: std::path::PathBuf,
+    dir: &std::path::Path,
 ) -> impl Iterator<Item = Result<CustomDirEnt, jwalk::Error>> {
     let walk_dir = jwalk::WalkDirGeneric::<CustomState>::new(dir).process_read_dir(
         |_depth, _path, _read_dir_state, children| {
