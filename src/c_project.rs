@@ -1,5 +1,3 @@
-use std::fmt::Write;
-
 use regex::Regex;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -35,39 +33,10 @@ type CustomDirEnt = jwalk::DirEntry<CustomState>;
 // produced files: /.+\.(a,out,so)/
 // temporary files: /.+\.(?:o|gch)/
 
-struct FileMatcher<'a> {
-    regex_str: &'a str,
-    regex: once_cell::sync::Lazy<Regex>,
-    kind: FileKind,
-}
 struct FileMatcher2 {
     regex: Regex,
     kind: FileKind,
 }
-
-const BBBB: [FileMatcher; 1] = [FileMatcher {
-    regex_str: "",
-    regex: once_cell::sync::Lazy::new(|| Regex::new("").unwrap()),
-    kind: FileKind::Deliverable,
-}];
-
-const FF: FileMatcher<'static> = FileMatcher {
-    regex_str: r".+\.(a|out|so)$",
-    regex: once_cell::sync::Lazy::new(|| Regex::new(ARTEFACTS_PRODUCED).unwrap()),
-    kind: FileKind::Deliverable,
-};
-
-const ARTEFACTS_PRODUCED: &str = r".+\.(a|out|so)$";
-static RE_ARTEFACTS_PRODUCED: once_cell::sync::Lazy<Regex> =
-    once_cell::sync::Lazy::new(|| Regex::new(ARTEFACTS_PRODUCED).unwrap());
-
-const ARTEFACTS_TEMP: &str = r".+\.(o|gch)$";
-static RE_ARTEFACTS_TEMP: once_cell::sync::Lazy<Regex> =
-    once_cell::sync::Lazy::new(|| Regex::new(ARTEFACTS_TEMP).unwrap());
-
-const SOURCE: &str = r".+\.(c|h|cpp|hpp|cc|hh)$";
-static RE_SOURCE: once_cell::sync::Lazy<Regex> =
-    once_cell::sync::Lazy::new(|| Regex::new(ARTEFACTS_TEMP).unwrap());
 
 // INFO: we need to retain .o files and all folders
 fn is_to_retain(dir_entry: &CustomDirEnt) -> bool {
