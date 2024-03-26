@@ -59,6 +59,7 @@ static MATCHERS: once_cell::sync::Lazy<[FileMatcher; 3]> = once_cell::sync::Lazy
         },
     ]
 });
+
 fn tag_file(dir_entry: &mut CustomDirEnt) {
     let Some(file_name) = dir_entry.file_name().to_str() else {
         return;
@@ -93,7 +94,7 @@ pub fn id_temporary_files(
         },
     );
 
-    // INFO: afterwards, we can filter out the folder
+    // INFO: afterwards, we can filter out the folders
     walk_dir.into_iter().filter(|elem| {
         elem.as_ref()
             .map(|dir_entry| dir_entry.file_type().is_file())

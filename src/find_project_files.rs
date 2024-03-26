@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
-type CustomState = (usize, bool);
-type CustomDirEnt = jwalk::DirEntry<CustomState>;
+type CustomState = (usize, Option<ProjectLang>);
+pub type CustomDirEnt = jwalk::DirEntry<CustomState>;
 
 // TODO: sort folders first?
 fn sort_predicate(
@@ -15,27 +15,47 @@ fn sort_predicate(
     }
 }
 
-// const PROJ_CONFIG_FILESS: &'static [&'static str] = &["package.json", "cargo.toml", "Makefile"];
-const PROJ_CONFIG_FILESS: &'static [&'static str] = &["Makefile"];
-
-fn is_project_config_file(filename: &std::ffi::OsStr) -> bool {
-    if let Ok(filename) = filename.try_into() {
-        PROJ_CONFIG_FILESS.contains(&filename)
-    } else {
-        false
-    }
+#[derive(Clone, Copy, Debug)]
+pub enum ProjectLang {
+    CCpp,
+    Rust,
+    NodeJS,
 }
 
-#[cfg(test)]
-mod test_is_project_config_file {
-    #[test]
-    fn case_a() {
-        let os_filename = std::ffi::OsString::from("package.json");
-        assert_eq!(super::is_project_config_file(&os_filename), true);
-    }
+struct ProjectMatcher {
+    lang: ProjectLang,
+    file: &'static str,
 }
 
-pub fn iter(dir: &str) -> jwalk::DirEntryIter<(usize, bool)> {
+static MATCHERS: [ProjectMatcher; 3] = [
+    ProjectMatcher {
+        lang: ProjectLang::CCpp,
+        file: "Makefile",
+    },
+    ProjectMatcher {
+        lang: ProjectLang::Rust,
+        file: "cargo.toml",
+    },
+    ProjectMatcher {
+        lang: ProjectLang::NodeJS,
+        file: "package.json",
+    },
+];
+
+fn get_project_lang(file_name: &std::ffi::OsStr) -> Option<ProjectLang> {
+    let Some(file_name) = file_name.to_str() else {
+        return None;
+    };
+    MATCHERS.iter().find_map(|matcher| {
+        if matcher.file == file_name {
+            Some(matcher.lang)
+        } else {
+            None
+        }
+    })
+}
+
+pub fn iter(dir: &str) -> jwalk::DirEntryIter<CustomState> {
     let walk_dir = jwalk::WalkDirGeneric::<CustomState>::new(dir).process_read_dir(
         |_depth, _path, _read_dir_state, children| {
             // INFO: base usage for this callback
@@ -44,24 +64,22 @@ pub fn iter(dir: &str) -> jwalk::DirEntryIter<(usize, bool)> {
             children.sort_by(sort_predicate);
 
             let mut count: usize = 0;
-            children
-                .iter_mut()
-                .filter_map(|entry| match entry {
-                    Ok(entry) if is_project_config_file(entry.file_name()) => {
+            children.iter_mut().for_each(|dir_ent_result| {
+                let _ = dir_ent_result.as_mut().map(|dir_entry| {
+                    dir_entry.client_state = get_project_lang(dir_entry.file_name());
+                    if let Some(_) = dir_entry.client_state {
                         count += 1;
-                        Some(entry)
                     }
-                    _ => None,
-                })
-                .for_each(|entry| entry.client_state = true);
+                });
+            });
+            // INFO: if at least one child indicates to us that we are in a
+            // codebase, don't bother reading subdirectories.
             if count != 0 {
-                children
-                    .iter_mut()
-                    .filter_map(|entry| match entry {
-                        Ok(entry) if entry.read_children_path != None => Some(entry),
-                        _ => None,
-                    })
-                    .for_each(|entry| entry.read_children_path = None);
+                children.iter_mut().for_each(|dir_ent_res| {
+                    let _ = dir_ent_res
+                        .as_mut()
+                        .map(|dir_entry| dir_entry.read_children_path = None);
+                });
             }
         },
     );
