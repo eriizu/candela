@@ -33,7 +33,7 @@ type CustomDirEnt = jwalk::DirEntry<CustomState>;
 // produced files: /.+\.(a,out,so)/
 // temporary files: /.+\.(?:o|gch)/
 
-struct FileMatcher2 {
+struct FileMatcher {
     regex: Regex,
     kind: FileKind,
 }
@@ -43,19 +43,19 @@ fn is_to_retain(dir_entry: &CustomDirEnt) -> bool {
     dir_entry.file_type().is_dir() || dir_entry.client_state != FileKind::Other
 }
 
-static MATCHERS: once_cell::sync::Lazy<[FileMatcher2; 3]> = once_cell::sync::Lazy::new(|| {
+static MATCHERS: once_cell::sync::Lazy<[FileMatcher; 3]> = once_cell::sync::Lazy::new(|| {
     [
-        FileMatcher2 {
+        FileMatcher {
             regex: Regex::new(r".+\.(a|out|so)$").unwrap(),
             kind: FileKind::Deliverable,
         },
-        FileMatcher2 {
+        FileMatcher {
             regex: Regex::new(r".+\.(o|gch)$").unwrap(),
             kind: FileKind::Temporary,
         },
-        FileMatcher2 {
+        FileMatcher {
             regex: Regex::new(r".+\.(c|h|cpp|hpp|cc|hh)$").unwrap(),
-            kind: FileKind::Other,
+            kind: FileKind::Source,
         },
     ]
 });
@@ -73,13 +73,6 @@ fn tag_file(dir_entry: &mut CustomDirEnt) {
         Some(kind) => dir_entry.client_state = kind,
         _ => {}
     };
-    // if RE_ARTEFACTS_TEMP.is_match(file_name) {
-    //     dir_entry.client_state = FileKind::Temporary;
-    // } else if RE_ARTEFACTS_PRODUCED.is_match(file_name) {
-    //     dir_entry.client_state = FileKind::Deliverable;
-    // } else if RE_SOURCE.is_match(file_name) {
-    //     dir_entry.client_state = FileKind::Source;
-    // }
 }
 
 pub fn id_temporary_files(
