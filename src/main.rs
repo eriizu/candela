@@ -15,8 +15,11 @@ fn main() {
                 let mut path = item.path().clone();
                 path.pop();
                 // println!("{}", path.display());
-                c_project::id_temporary_files(path)
-                    .for_each(|file| println!("{}", file.unwrap().path().display()));
+                c_project::id_temporary_files(path).for_each(|file| {
+                    if let Ok(file) = file {
+                        println!("{} {}", file.path().display(), file.client_state)
+                    }
+                });
             });
     }
 }
