@@ -1,3 +1,5 @@
+use std::{borrow::BorrowMut, cell::RefCell};
+
 use c_project::FileKind;
 
 mod c_project;
@@ -16,17 +18,85 @@ fn find_all_ccpp_projects(
         })
 }
 
+struct Project {
+    path: std::path::PathBuf,
+    files: Vec<c_project::CustomDirEnt>,
+    artefacts_sizes: RefCell<Option<u64>>,
+}
+
+impl Project {
+    fn compute_artefacts_sizes(&self) {
+        let sum: u64 = self
+            .files
+            .iter()
+            .map(|file| file.path())
+            .filter_map(|path| path.metadata().ok())
+            .map(|meta| meta.len())
+            .sum();
+        *self.artefacts_sizes.borrow_mut() = Some(sum);
+    }
+
+    fn get_or_compute_artefact_sizes(&self) -> u64 {
+        let potential_value = *self.artefacts_sizes.borrow();
+        if let Some(val) = potential_value {
+            return val;
+        } else {
+            self.compute_artefacts_sizes();
+            return self.get_or_compute_artefact_sizes();
+        }
+    }
+    fn print_temp_and_deliverables(&self) {
+        self.files
+            .iter()
+            .filter(|file| match file.client_state {
+                FileKind::Temporary | FileKind::Deliverable => true,
+                _ => false,
+            })
+            .for_each(|file| {
+                if let Ok(tmp) = file.path().strip_prefix(&self.path) {
+                    println!("- {} {}", tmp.display(), file.client_state)
+                }
+            });
+    }
+
+    fn pretty_print(&self) {
+        let n_temporary = self
+            .files
+            .iter()
+            .filter(|file| file.client_state == FileKind::Temporary)
+            .count();
+        let n_deliverable = self
+            .files
+            .iter()
+            .filter(|file| file.client_state == FileKind::Deliverable)
+            .count();
+
+        println!("- Project {}", self.path.display());
+        println!("    - {} temporary files", n_temporary);
+        println!("    - {} deliverable files", n_deliverable);
+        println!(
+            "    - size of artefacts {} ",
+            self.get_or_compute_artefact_sizes()
+        );
+    }
+}
+
 fn find_temp_and_deliverable_files(base_path: &std::path::Path) {
-    c_project::id_temporary_files(base_path)
+    // println!("\n:: in project {}", base_path.to_str().unwrap());
+    let files: Vec<c_project::CustomDirEnt> = c_project::id_temporary_files(base_path)
         .filter_map(|file| match file {
             Ok(file) => Some(file),
             _ => None,
         })
-        .filter(|file| match file.client_state {
-            FileKind::Temporary | FileKind::Deliverable => true,
-            _ => false,
-        })
-        .for_each(|file| println!("{} {}", file.path().display(), file.client_state));
+        .collect();
+
+    let proj = Project {
+        path: base_path.to_owned(),
+        files,
+        artefacts_sizes: RefCell::new(None),
+    };
+    proj.pretty_print();
+    // proj.print_temp_and_deliverables();
 }
 
 fn main() {

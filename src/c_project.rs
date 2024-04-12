@@ -26,10 +26,10 @@ impl std::fmt::Display for FileKind {
     }
 }
 
-type CustomState = (usize, FileKind);
-type CustomDirEnt = jwalk::DirEntry<CustomState>;
+pub type CustomState = (usize, FileKind);
+pub type CustomDirEnt = jwalk::DirEntry<CustomState>;
 
-// TODO: use regexes for matching a whole pannel of files
+// INFO: regexes that we use:
 // produced files: /.+\.(a,out,so)/
 // temporary files: /.+\.(?:o|gch)/
 
@@ -38,7 +38,7 @@ struct FileMatcher {
     kind: FileKind,
 }
 
-// INFO: we need to retain .o files and all folders
+// INFO: we need to retain artefacts files and all folders
 fn is_to_retain(dir_entry: &CustomDirEnt) -> bool {
     dir_entry.file_type().is_dir() || dir_entry.client_state != FileKind::Other
 }
