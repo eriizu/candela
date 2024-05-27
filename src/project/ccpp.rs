@@ -1,12 +1,6 @@
 use regex::Regex;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum FileKind {
-    Source,
-    Deliverable,
-    Temporary,
-    Other,
-}
+use super::FileKind;
 
 impl Default for FileKind {
     fn default() -> Self {
