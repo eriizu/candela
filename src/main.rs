@@ -3,92 +3,133 @@ mod project;
 
 use project::Project;
 
-fn main() {
-    for arg in std::env::args().skip(1) {
-        find_project_files::iter(&arg)
-            .filter_map(|direntry| match direntry.client_state {
-                // Some(state) if state != find_project_files::ProjectLang::CCpp => {
-                Some(state) => Some((direntry, state)),
-                _ => None,
-            })
-            .for_each(|(direntry, state)| {
-                let mut path = direntry.path();
-                path.pop();
-                clean_project_at_path(path, state)
-            });
-    }
+use spinoff::{spinners, Spinner};
+
+struct JWalkCleaner {
+    spinner: spinoff::Spinner,
 }
 
-fn clean_project_at_path(mut path: std::path::PathBuf, state: find_project_files::ProjectLang) {
-    println!("{}", path.display());
-    match state {
-        find_project_files::ProjectLang::Yarn => {
-            let mut cmd = std::process::Command::new("yarn");
-            cmd.arg("cache").arg("clean").current_dir(path);
-            spawn_and_wait_command(cmd);
+impl JWalkCleaner {
+    fn new() -> Self {
+        Self {
+            spinner: Spinner::new(spinners::Dots, "Scaning and deleting...", None),
         }
-        find_project_files::ProjectLang::Npm => {
-            path.push("node_modules");
-            if path.exists() {
-                if let Err(err) = std::fs::remove_dir_all(path) {
-                    eprintln!("{}", err);
+    }
+    fn restart_spinner(&mut self, message: &str) {
+        self.spinner = Spinner::new(spinners::Dots, "Scaning and deleting...", None);
+    }
+
+    fn run<T>(&mut self, paths_to_search: T)
+    where
+        T: Iterator<Item = String>,
+    {
+        for arg in paths_to_search {
+            find_project_files::iter(&arg)
+                .filter_map(|direntry| match direntry.client_state {
+                    // Some(state) if state != find_project_files::ProjectLang::CCpp => {
+                    Some(state) => Some((direntry, state)),
+                    _ => None,
+                })
+                .for_each(|(direntry, state)| {
+                    let mut path = direntry.path();
+                    path.pop();
+                    self.spinner
+                        .update_text(format!("processing: {}", path.display()));
+                    self.clean_project_at_path(path, state);
+                    self.spinner.update_text("scanning for next project...");
+                });
+        }
+        self.spinner.success("Done! Thanks for using me!");
+    }
+
+    fn clean_project_at_path(
+        &mut self,
+        mut path: std::path::PathBuf,
+        state: find_project_files::ProjectLang,
+    ) {
+        match state {
+            find_project_files::ProjectLang::Yarn => {
+                let mut cmd = std::process::Command::new("yarn");
+                cmd.arg("cache").arg("clean").current_dir(path);
+                self.spawn_and_wait_command(cmd);
+            }
+            find_project_files::ProjectLang::Npm => {
+                path.push("node_modules");
+                if path.exists() {
+                    if let Err(err) = std::fs::remove_dir_all(path) {
+                        eprintln!("{}", err);
+                    }
                 }
             }
+            find_project_files::ProjectLang::Rust => {
+                let mut cmd = std::process::Command::new("cargo");
+                cmd.arg("clean").current_dir(path);
+                self.spawn_and_wait_command(cmd);
+            }
+            find_project_files::ProjectLang::CCpp => {
+                self.process_ccpp(path);
+            }
         }
-        find_project_files::ProjectLang::Rust => {
-            let mut cmd = std::process::Command::new("cargo");
-            cmd.arg("clean").current_dir(path);
-            spawn_and_wait_command(cmd);
-        }
-        find_project_files::ProjectLang::CCpp => {
-            let project = Project::from_c_project_path(path.as_ref());
+    }
+
+    fn process_ccpp(&mut self, path: std::path::PathBuf) {
+        let project = Project::from_c_project_path(path.as_ref());
+        let to_remove: Vec<_> = project
+            .files
+            .iter()
+            .filter(|direntry| direntry.client_state == project::FileKind::Temporary)
+            .map(|direntry| direntry.path())
+            .collect();
+        if to_remove.len() != 0 {
+            self.spinner.stop();
+            print!("\r");
             project.pretty_print();
-            let to_remove: Vec<_> = project
-                .files
-                .iter()
-                .filter(|direntry| direntry.client_state == project::FileKind::Temporary)
-                .map(|direntry| direntry.path())
-                .collect();
-            if to_remove.len() != 0 {
-                println!("about to remove:");
-                to_remove.iter().for_each(|path| {
-                    if let Some(os_file_name) = path.file_name() {
-                        if let Some(file_name) = os_file_name.to_str() {
-                            println!("{}", file_name);
-                        } else {
-                            eprintln!("Failed to convert one filename to str");
-                        }
+            println!("about to remove:");
+            to_remove.iter().for_each(|path| {
+                if let Some(os_file_name) = path.file_name() {
+                    if let Some(file_name) = os_file_name.to_str() {
+                        println!("{}", file_name);
                     } else {
-                        eprintln!("Failed to extract a filename from path");
+                        eprintln!("Failed to convert one filename to str");
+                    }
+                } else {
+                    eprintln!("Failed to extract a filename from path");
+                }
+            });
+            let ans = inquire::Confirm::new("proceed ?")
+                .with_default(true)
+                .prompt()
+                .unwrap();
+            if ans {
+                self.restart_spinner("removing files...");
+                to_remove.iter().for_each(|path| {
+                    if let Err(err) = std::fs::remove_file(path) {
+                        eprintln!("\r{}", err);
                     }
                 });
-                let ans = inquire::Confirm::new("proceed ?")
-                    .with_default(true)
-                    .prompt()
-                    .unwrap();
-                if ans {
-                    to_remove.iter().for_each(|path| {
-                        if let Err(err) = std::fs::remove_file(path) {
-                            eprintln!("{}", err);
-                        }
-                    });
-                }
+            } else {
+                self.restart_spinner("");
+            }
+        }
+    }
+    fn spawn_and_wait_command(&mut self, mut cmd: std::process::Command) {
+        if let Ok(output) = cmd.output() {
+            if !output.status.success() {
+                self.spinner.fail("failed cleanup command");
+                eprintln!(
+                    "{} exited with status: {}",
+                    cmd.get_program().to_str().unwrap_or("?"),
+                    output.status
+                );
+                use std::io::Write;
+                std::io::stderr().write_all(&output.stdout).unwrap();
+                std::io::stderr().write_all(&output.stderr).unwrap();
+                self.restart_spinner("resuming...");
             }
         }
     }
 }
 
-fn spawn_and_wait_command(mut cmd: std::process::Command) {
-    if let Ok(output) = cmd.output() {
-        if !output.status.success() {
-            eprintln!(
-                "{} exited with status: {}",
-                cmd.get_program().to_str().unwrap_or("?"),
-                output.status
-            );
-            use std::io::Write;
-            std::io::stderr().write_all(&output.stdout).unwrap();
-            std::io::stderr().write_all(&output.stderr).unwrap();
-        }
-    }
+fn main() {
+    JWalkCleaner::new().run(std::env::args().skip(1));
 }
