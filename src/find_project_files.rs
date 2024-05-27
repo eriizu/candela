@@ -1,4 +1,6 @@
 use std::cmp::Ordering;
+
+// use crate::c_project::CustomDirEnt;
 type CustomState = (usize, Option<ProjectLang>);
 pub type CustomDirEnt = jwalk::DirEntry<CustomState>;
 
@@ -15,11 +17,12 @@ fn sort_predicate(
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProjectLang {
     CCpp,
     Rust,
-    NodeJS,
+    Yarn,
+    Npm,
 }
 
 struct ProjectMatcher {
@@ -27,18 +30,22 @@ struct ProjectMatcher {
     file: &'static str,
 }
 
-static MATCHERS: [ProjectMatcher; 3] = [
+static MATCHERS: [ProjectMatcher; 4] = [
     ProjectMatcher {
         lang: ProjectLang::CCpp,
         file: "Makefile",
     },
     ProjectMatcher {
         lang: ProjectLang::Rust,
-        file: "cargo.toml",
+        file: "Cargo.toml",
     },
     ProjectMatcher {
-        lang: ProjectLang::NodeJS,
-        file: "package.json",
+        lang: ProjectLang::Yarn,
+        file: "yarn.lock",
+    },
+    ProjectMatcher {
+        lang: ProjectLang::Npm,
+        file: "package-lock.json",
     },
 ];
 
@@ -55,7 +62,7 @@ fn get_project_lang(file_name: &std::ffi::OsStr) -> Option<ProjectLang> {
     })
 }
 
-pub fn iter(dir: &str) -> jwalk::DirEntryIter<CustomState> {
+pub fn iter(dir: &str) -> impl Iterator<Item = CustomDirEnt> {
     let walk_dir = jwalk::WalkDirGeneric::<CustomState>::new(dir).process_read_dir(
         |_depth, _path, _read_dir_state, children| {
             // INFO: base usage for this callback
@@ -83,5 +90,5 @@ pub fn iter(dir: &str) -> jwalk::DirEntryIter<CustomState> {
             }
         },
     );
-    return walk_dir.into_iter();
+    return walk_dir.into_iter().filter_map(|dirent| dirent.ok());
 }
