@@ -1,22 +1,31 @@
-use std::{cell::RefCell, ffi::OsStr};
-
 mod find_project_files;
 mod project;
 
 use project::Project;
 
+fn main() {
+    for arg in std::env::args().skip(1) {
+        find_project_files::iter(&arg)
+            .filter_map(|direntry| match direntry.client_state {
+                // Some(state) if state != find_project_files::ProjectLang::CCpp => {
+                Some(state) => Some((direntry, state)),
+                _ => None,
+            })
+            .for_each(|(direntry, state)| {
+                let mut path = direntry.path();
+                path.pop();
+                clean_project_at_path(path, state)
+            });
+    }
+}
+
 fn clean_project_at_path(mut path: std::path::PathBuf, state: find_project_files::ProjectLang) {
-    println!("\n:: in {}", path.display());
+    println!("{}", path.display());
     match state {
         find_project_files::ProjectLang::Yarn => {
-            std::process::Command::new("yarn")
-                .arg("cache")
-                .arg("clean")
-                .current_dir(path)
-                .spawn()
-                .unwrap()
-                .wait_with_output()
-                .unwrap();
+            let mut cmd = std::process::Command::new("yarn");
+            cmd.arg("cache").arg("clean").current_dir(path);
+            spawn_and_wait_command(cmd);
         }
         find_project_files::ProjectLang::Npm => {
             path.push("node_modules");
@@ -27,13 +36,9 @@ fn clean_project_at_path(mut path: std::path::PathBuf, state: find_project_files
             }
         }
         find_project_files::ProjectLang::Rust => {
-            std::process::Command::new("cargo")
-                .arg("clean")
-                .current_dir(path)
-                .spawn()
-                .unwrap()
-                .wait_with_output()
-                .unwrap();
+            let mut cmd = std::process::Command::new("cargo");
+            cmd.arg("clean").current_dir(path);
+            spawn_and_wait_command(cmd);
         }
         find_project_files::ProjectLang::CCpp => {
             let project = Project::from_c_project_path(path.as_ref());
@@ -73,18 +78,17 @@ fn clean_project_at_path(mut path: std::path::PathBuf, state: find_project_files
     }
 }
 
-fn main() {
-    for arg in std::env::args().skip(1) {
-        find_project_files::iter(&arg)
-            .filter_map(|direntry| match direntry.client_state {
-                // Some(state) if state != find_project_files::ProjectLang::CCpp => {
-                Some(state) => Some((direntry, state)),
-                _ => None,
-            })
-            .for_each(|(direntry, state)| {
-                let mut path = direntry.path();
-                path.pop();
-                clean_project_at_path(path, state)
-            });
+fn spawn_and_wait_command(mut cmd: std::process::Command) {
+    if let Ok(output) = cmd.output() {
+        if !output.status.success() {
+            eprintln!(
+                "{} exited with status: {}",
+                cmd.get_program().to_str().unwrap_or("?"),
+                output.status
+            );
+            use std::io::Write;
+            std::io::stderr().write_all(&output.stdout).unwrap();
+            std::io::stderr().write_all(&output.stderr).unwrap();
+        }
     }
 }
