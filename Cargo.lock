@@ -190,17 +190,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "jwalk_test_202403"
-version = "0.1.0"
-dependencies = [
- "inquire",
- "jwalk",
- "once_cell",
- "regex",
- "spinoff",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -289,6 +278,17 @@ name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
+name = "projclean"
+version = "0.1.0"
+dependencies = [
+ "inquire",
+ "jwalk",
+ "once_cell",
+ "regex",
+ "spinoff",
+]
 
 [[package]]
 name = "rayon"
