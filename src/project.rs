@@ -7,6 +7,7 @@ pub enum FileKind {
     Source,
     Deliverable,
     Temporary,
+    OtherElf,
     Other,
 }
 
@@ -37,7 +38,10 @@ impl Project {
         let sum: u64 = self
             .files
             .iter()
-            .filter(|entry| entry.client_state == FileKind::Temporary)
+            .filter(|entry| match entry.client_state {
+                FileKind::Temporary | FileKind::OtherElf => true,
+                _ => false,
+            })
             .map(|file| file.path())
             .filter_map(|path| path.metadata().ok())
             .map(|meta| meta.len())
@@ -79,10 +83,16 @@ impl Project {
             .iter()
             .filter(|file| file.client_state == FileKind::Deliverable)
             .count();
+        let n_elf = self
+            .files
+            .iter()
+            .filter(|file| file.client_state == FileKind::OtherElf)
+            .count();
 
         println!("- Project {}", self.path.display());
         println!("    - {} temporary files", n_temporary);
         println!("    - {} deliverable files", n_deliverable);
+        println!("    - {} ELF files", n_elf);
         println!(
             "    - size of artefacts {} ",
             self.get_or_compute_artefact_sizes()

@@ -1,4 +1,5 @@
 mod find_project_files;
+mod is_elf;
 mod project;
 
 use project::Project;
@@ -15,8 +16,8 @@ impl JWalkCleaner {
             spinner: Spinner::new(spinners::Dots, "Scaning and deleting...", None),
         }
     }
-    fn restart_spinner(&mut self, message: &str) {
-        self.spinner = Spinner::new(spinners::Dots, "Scaning and deleting...", None);
+    fn restart_spinner(&mut self, message: &'static str) {
+        self.spinner = Spinner::new(spinners::Dots, message, None);
     }
 
     fn run<T>(&mut self, paths_to_search: T)
@@ -77,7 +78,11 @@ impl JWalkCleaner {
         let to_remove: Vec<_> = project
             .files
             .iter()
-            .filter(|direntry| direntry.client_state == project::FileKind::Temporary)
+            // .filter(|direntry| direntry.client_state == project::FileKind::Temporary)
+            .filter(|entry| match entry.client_state {
+                project::FileKind::Temporary | project::FileKind::OtherElf => true,
+                _ => false,
+            })
             .map(|direntry| direntry.path())
             .collect();
         if to_remove.len() != 0 {

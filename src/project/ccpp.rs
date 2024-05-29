@@ -15,6 +15,7 @@ impl std::fmt::Display for FileKind {
             Self::Deliverable => "Deliverable",
             Self::Temporary => "Temporary",
             Self::Other => "Other",
+            Self::OtherElf => "Other Elf",
         };
         f.write_str(to_write)
     }
@@ -62,7 +63,11 @@ fn tag_file(dir_entry: &mut CustomDirEnt) {
         if matcher.regex.is_match(file_name) {
             Some(matcher.kind)
         } else {
-            None
+            if crate::is_elf::is_elf(dir_entry.path()).unwrap_or(false) {
+                Some(FileKind::OtherElf)
+            } else {
+                None
+            }
         }
     }) {
         Some(kind) => dir_entry.client_state = kind,
