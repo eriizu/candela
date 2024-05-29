@@ -19,7 +19,7 @@ pub fn is_elf<T: std::convert::AsRef<std::path::Path>>(file_path: T) -> Result<b
 
     let mut start_bytes: [u8; 4] = [0; 4];
     match file.read_exact(&mut start_bytes) {
-        Ok(qty_read) => qty_read,
+        Ok(_) => {}
         Err(err) => {
             return Err(IsElfError::Io {
                 kind: err.kind(),
