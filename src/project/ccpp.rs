@@ -63,15 +63,15 @@ fn tag_file(dir_entry: &mut CustomDirEnt) {
         if matcher.regex.is_match(file_name) {
             Some(matcher.kind)
         } else {
-            if crate::is_elf::is_elf(dir_entry.path()).unwrap_or(false) {
-                Some(FileKind::OtherElf)
-            } else {
-                None
-            }
+            None
         }
     }) {
         Some(kind) => dir_entry.client_state = kind,
-        _ => {}
+        _ => {
+            if crate::is_elf::is_elf(dir_entry.path()).unwrap_or(false) {
+                dir_entry.client_state = FileKind::OtherElf;
+            }
+        }
     };
 }
 
