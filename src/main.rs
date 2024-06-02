@@ -3,6 +3,7 @@ mod recursive_cleaner;
 use clap::{Command, Parser};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+// INFO: ASCII candle copyright of Joan Stack
 const CANDLE_ASCII_ART: &'static str = r#"
             )
            (_)
