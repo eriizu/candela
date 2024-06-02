@@ -8,16 +8,18 @@ use spinoff::{spinners, Spinner};
 
 struct JWalkCleaner {
     spinner: spinoff::Spinner,
+    n_processed: u32,
 }
 
 impl JWalkCleaner {
     fn new() -> Self {
         Self {
             spinner: Spinner::new(spinners::Dots, "Scaning and deleting...", None),
+            n_processed: 0,
         }
     }
-    fn restart_spinner(&mut self, message: &'static str) {
-        self.spinner = Spinner::new(spinners::Dots, message, None);
+    fn restart_spinner(&mut self) {
+        self.spinner = Spinner::new(spinners::Dots, "Scaning and deleting...", None);
     }
 
     fn run<T>(&mut self, paths_to_search: T)
@@ -34,13 +36,20 @@ impl JWalkCleaner {
                 .for_each(|(direntry, state)| {
                     let mut path = direntry.path();
                     path.pop();
-                    self.spinner
-                        .update_text(format!("processing: {}", path.display()));
+                    // self.spinner
+                    //     .update_text(format!("processing: {}", path.display()));
                     self.clean_project_at_path(path, state);
-                    self.spinner.update_text("scanning for next project...");
+                    // self.spinner.update_text("scanning for next project...");
+                    self.n_processed += 1;
                 });
         }
-        self.spinner.success("Done! Thanks for using me!");
+        self.spinner.success(
+            format!(
+                "Processed {} project folders. Thanks for using me!",
+                self.n_processed
+            )
+            .as_ref(),
+        );
     }
 
     fn clean_project_at_path(
@@ -106,14 +115,14 @@ impl JWalkCleaner {
                 .prompt()
                 .unwrap();
             if ans {
-                self.restart_spinner("removing files...");
+                self.restart_spinner();
                 to_remove.iter().for_each(|path| {
                     if let Err(err) = std::fs::remove_file(path) {
                         eprintln!("\r{}", err);
                     }
                 });
             } else {
-                self.restart_spinner("");
+                self.restart_spinner();
             }
         }
     }
@@ -129,7 +138,7 @@ impl JWalkCleaner {
                 use std::io::Write;
                 std::io::stderr().write_all(&output.stdout).unwrap();
                 std::io::stderr().write_all(&output.stderr).unwrap();
-                self.restart_spinner("resuming...");
+                self.restart_spinner();
             }
         }
     }
