@@ -1,6 +1,7 @@
+mod flattener;
 mod recursive_cleaner;
 
-use clap::{Command, Parser};
+use clap::Parser;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 // INFO: ASCII candle copyright of Joan Stack
@@ -33,6 +34,7 @@ enum Commands {
     Clean {
         base_dirs: Vec<String>,
     },
+    Flatten(flattener::Cli),
     Version,
 }
 
@@ -42,6 +44,7 @@ fn main() {
         Commands::Clean { mut base_dirs } => {
             recursive_cleaner::RecursiveCleaner::new().run(base_dirs.drain(..));
         }
+        Commands::Flatten(flatten_opt) => flattener::run(flatten_opt),
         Commands::Version => {
             print!("{CANDLE_ASCII_ART}\n\n");
             println!("candela v{}\nA personnal qol helper.", VERSION);
