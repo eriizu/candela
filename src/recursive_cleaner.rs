@@ -1,4 +1,6 @@
-use crate::*;
+mod find_project_files;
+mod is_elf;
+mod project;
 
 use spinoff::{spinners, Spinner};
 

@@ -1,6 +1,3 @@
-mod find_project_files;
-mod is_elf;
-mod project;
 mod recursive_cleaner;
 
 fn main() {
