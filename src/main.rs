@@ -1,8 +1,23 @@
 mod recursive_cleaner;
 
-use clap::Parser;
+use clap::{Command, Parser};
 
-/// A fictional versioning CLI
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const CANDLE_ASCII_ART: &'static str = r#"
+            )
+           (_)
+          .-'-.
+          |   |
+          |   |
+          |   |
+          |   |
+        __|   |__   .-.
+     .-'  |   |  `-:   :
+    :     `---'     :-'
+jgs  `-._       _.-'
+         '""""""
+"#;
+
 #[derive(Debug, Parser)] // requires `derive` feature
 #[command(name = "candela")]
 #[command(about = "A personal helper for managing code repos", long_about = None)]
@@ -14,7 +29,10 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     #[command(arg_required_else_help = true)]
-    Clean { base_dirs: Vec<String> },
+    Clean {
+        base_dirs: Vec<String>,
+    },
+    Version,
 }
 
 fn main() {
@@ -22,6 +40,10 @@ fn main() {
     match opt.command {
         Commands::Clean { mut base_dirs } => {
             recursive_cleaner::RecursiveCleaner::new().run(base_dirs.drain(..));
+        }
+        Commands::Version => {
+            print!("{CANDLE_ASCII_ART}\n\n");
+            println!("candela v{}\nA personnal qol helper.", VERSION);
         }
     }
 }
