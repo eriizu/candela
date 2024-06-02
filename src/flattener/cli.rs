@@ -40,7 +40,7 @@ const ROOT_HELP: &str = "\
 Directory to use as root, only one depth of directories under root will be kept in copy";
 const DEST_HELP: &str = "Destination directory for the files";
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Args, Debug)]
 #[command(author, version, about = ABOUT, long_about = LONG_ABOUT)]
 pub struct Cli {
     //#[arg(short, long, default_value_t = true, help = KEEP_DIR_NAMES_HELP)]
