@@ -68,7 +68,7 @@ fn tag_file(dir_entry: &mut CustomDirEnt) {
     }) {
         Some(kind) => dir_entry.client_state = kind,
         _ => {
-            if crate::is_elf::is_elf(dir_entry.path()).unwrap_or(false) {
+            if super::super::is_elf::is_elf(dir_entry.path()).unwrap_or(false) {
                 dir_entry.client_state = FileKind::OtherElf;
             }
         }
