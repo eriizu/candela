@@ -95,7 +95,7 @@ impl Project {
         println!("    - {} ELF files", n_elf);
         println!(
             "    - size of artefacts {} ",
-            self.get_or_compute_artefact_sizes()
+            size::Size::from_bytes(self.get_or_compute_artefact_sizes())
         );
     }
 }
