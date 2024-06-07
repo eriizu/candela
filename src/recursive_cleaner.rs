@@ -7,6 +7,7 @@ use spinoff::{spinners, Spinner};
 pub struct RecursiveCleaner {
     spinner: spinoff::Spinner,
     n_processed: u32,
+    n_cleaned: u32,
 }
 
 impl RecursiveCleaner {
@@ -14,6 +15,7 @@ impl RecursiveCleaner {
         Self {
             spinner: Spinner::new(spinners::Dots, "Scaning and deleting...", None),
             n_processed: 0,
+            n_cleaned: 0,
         }
     }
     fn restart_spinner(&mut self) {
@@ -33,14 +35,16 @@ impl RecursiveCleaner {
                 .for_each(|(direntry, state)| {
                     let mut path = direntry.path();
                     path.pop();
-                    self.clean_project_at_path(path, state);
+                    if self.clean_project_at_path(path, state) {
+                        self.n_cleaned += 1;
+                    }
                     self.n_processed += 1;
                 });
         }
         self.spinner.success(
             format!(
-                "Processed {} project folders. Thanks for using me!",
-                self.n_processed
+                "Clean {} out of {} project. Thanks for using me!",
+                self.n_cleaned, self.n_processed
             )
             .as_ref(),
         );
@@ -50,12 +54,27 @@ impl RecursiveCleaner {
         &mut self,
         mut path: std::path::PathBuf,
         state: find_project_files::ProjectLang,
-    ) {
+    ) -> bool {
+        let mut has_cleaned_something = false;
         match state {
             find_project_files::ProjectLang::Yarn => {
+                let node_modules_path = {
+                    let mut tmp = path.to_owned();
+                    tmp.push("node_modules");
+                    tmp
+                };
                 let mut cmd = std::process::Command::new("yarn");
-                cmd.arg("cache").arg("clean").current_dir(path);
+                cmd.arg("cache")
+                    .arg("cleaned")
+                    .arg("--all")
+                    .current_dir(path);
                 self.spawn_and_wait_command(cmd);
+                if node_modules_path.exists() {
+                    if let Err(err) = std::fs::remove_dir_all(node_modules_path) {
+                        eprintln!("{}", err);
+                    }
+                    has_cleaned_something = true;
+                }
             }
             find_project_files::ProjectLang::Npm => {
                 path.push("node_modules");
@@ -63,20 +82,30 @@ impl RecursiveCleaner {
                     if let Err(err) = std::fs::remove_dir_all(path) {
                         eprintln!("{}", err);
                     }
+                    has_cleaned_something = true;
                 }
             }
             find_project_files::ProjectLang::Rust => {
-                let mut cmd = std::process::Command::new("cargo");
-                cmd.arg("clean").current_dir(path);
-                self.spawn_and_wait_command(cmd);
+                let target_path = {
+                    let mut tmp = path.to_owned();
+                    tmp.push("target");
+                    tmp
+                };
+                if target_path.exists() {
+                    let mut cmd = std::process::Command::new("cargo");
+                    cmd.arg("clean").current_dir(path);
+                    self.spawn_and_wait_command(cmd);
+                    has_cleaned_something = true;
+                }
             }
             find_project_files::ProjectLang::CCpp => {
-                self.process_ccpp(path);
+                has_cleaned_something = self.process_ccpp(path);
             }
         }
+        return has_cleaned_something;
     }
 
-    fn process_ccpp(&mut self, path: std::path::PathBuf) {
+    fn process_ccpp(&mut self, path: std::path::PathBuf) -> bool {
         let project = project::Project::from_c_project_path(path.as_ref());
         let to_remove: Vec<_> = project
             .files
@@ -107,17 +136,17 @@ impl RecursiveCleaner {
                 .with_default(true)
                 .prompt()
                 .unwrap();
+            self.restart_spinner();
             if ans {
-                self.restart_spinner();
                 to_remove.iter().for_each(|path| {
                     if let Err(err) = std::fs::remove_file(path) {
                         eprintln!("\r{}", err);
                     }
                 });
-            } else {
-                self.restart_spinner();
+                return true;
             }
         }
+        return false;
     }
     fn spawn_and_wait_command(&mut self, mut cmd: std::process::Command) {
         if let Ok(output) = cmd.output() {
