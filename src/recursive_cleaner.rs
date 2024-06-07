@@ -41,13 +41,27 @@ impl RecursiveCleaner {
                     self.n_processed += 1;
                 });
         }
-        self.spinner.success(
-            format!(
-                "Clean {} out of {} project. Thanks for using me!",
-                self.n_cleaned, self.n_processed
-            )
-            .as_ref(),
-        );
+        self.spinner_success();
+    }
+
+    fn spinner_success(&mut self) {
+        if self.n_cleaned != 0 {
+            self.spinner.success(
+                format!(
+                    "Cleaned {} out of {} project. Thanks for using me!",
+                    self.n_cleaned, self.n_processed
+                )
+                .as_ref(),
+            );
+        } else {
+            self.spinner.success(
+                format!(
+                    "Scanned {} project folders, nothing to clean. Thanks for using me!",
+                    self.n_processed
+                )
+                .as_ref(),
+            );
+        }
     }
 
     fn clean_project_at_path(
@@ -63,12 +77,33 @@ impl RecursiveCleaner {
                     tmp.push("node_modules");
                     tmp
                 };
+                let yarn_install_state_path = {
+                    let mut tmp = path.to_owned();
+                    tmp.push(".yarn");
+                    tmp.push("install-state.gz");
+                    tmp
+                };
+                let yarn_unpluged_path = {
+                    let mut tmp = path.to_owned();
+                    tmp.push(".yarn");
+                    tmp.push("unplugged");
+                    tmp
+                };
                 let mut cmd = std::process::Command::new("yarn");
-                cmd.arg("cache")
-                    .arg("cleaned")
-                    .arg("--all")
-                    .current_dir(path);
+                cmd.arg("cache").arg("clean").arg("--all").current_dir(path);
                 self.spawn_and_wait_command(cmd);
+                if yarn_install_state_path.exists() {
+                    if let Err(err) = std::fs::remove_file(yarn_install_state_path) {
+                        eprintln!("{}", err);
+                    }
+                    has_cleaned_something = true;
+                }
+                if yarn_unpluged_path.exists() {
+                    if let Err(err) = std::fs::remove_dir_all(yarn_unpluged_path) {
+                        eprintln!("{}", err);
+                    }
+                    has_cleaned_something = true;
+                }
                 if node_modules_path.exists() {
                     if let Err(err) = std::fs::remove_dir_all(node_modules_path) {
                         eprintln!("{}", err);
