@@ -8,14 +8,16 @@ pub struct RecursiveCleaner {
     spinner: spinoff::Spinner,
     n_processed: u32,
     n_cleaned: u32,
+    force: bool,
 }
 
 impl RecursiveCleaner {
-    pub fn new() -> Self {
+    pub fn new(force: bool) -> Self {
         Self {
             spinner: Spinner::new(spinners::Dots, "Scaning and deleting...", None),
             n_processed: 0,
             n_cleaned: 0,
+            force,
         }
     }
     fn restart_spinner(&mut self) {
@@ -167,10 +169,14 @@ impl RecursiveCleaner {
                     eprintln!("Failed to extract a filename from path");
                 }
             });
-            let ans = inquire::Confirm::new("proceed ?")
-                .with_default(true)
-                .prompt()
-                .unwrap();
+            let ans = if self.force {
+                true
+            } else {
+                inquire::Confirm::new("proceed ?")
+                    .with_default(true)
+                    .prompt()
+                    .unwrap()
+            };
             self.restart_spinner();
             if ans {
                 to_remove.iter().for_each(|path| {

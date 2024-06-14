@@ -6,8 +6,11 @@ use clap::Parser;
 fn main() {
     let opt = Cli::parse();
     match opt.command {
-        Commands::Clean { mut base_dirs } => {
-            recursive_cleaner::RecursiveCleaner::new().run(base_dirs.drain(..));
+        Commands::Clean {
+            mut base_dirs,
+            force,
+        } => {
+            recursive_cleaner::RecursiveCleaner::new(force).run(base_dirs.drain(..));
         }
         Commands::Flatten(flatten_opt) => flattener::run(flatten_opt),
         Commands::Version => {
@@ -49,6 +52,9 @@ struct Cli {
 enum Commands {
     #[command(arg_required_else_help = true)]
     Clean {
+        #[arg(short, long)]
+        force: bool,
+
         base_dirs: Vec<String>,
     },
     Flatten(flattener::Cli),
@@ -88,6 +94,7 @@ mod template {
         },
     }
 
+    // TODO: maybe merge executor and templatecli structs?
     pub struct Executor {
         base_path: std::path::PathBuf,
     }
