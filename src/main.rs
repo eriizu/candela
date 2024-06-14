@@ -101,7 +101,7 @@ mod template {
 
     impl Executor {
         pub fn new() -> Self {
-            let home = std::env::var("HOME").unwrap();
+            let home = std::env::var("HOME").expect("user should have a HOME");
             let mut base_path = std::path::PathBuf::from(home);
             base_path.push(".config");
             base_path.push("candela");
@@ -115,39 +115,50 @@ mod template {
                     template_name,
                     list_of_files,
                 } => {
-                    let mut template_folder = self.base_path.clone();
-                    template_folder.push(&template_name);
-                    if !template_folder.exists() {
-                        std::fs::create_dir_all(&template_folder).unwrap();
-                    }
-                    list_of_files.iter().for_each(|file| {
-                        let mut in_template_file = template_folder.clone();
-                        in_template_file.push(file.as_str());
-                        if let Err(err) = std::fs::copy(file, &in_template_file) {
-                            eprintln!("{err}");
-                        }
-                    });
+                    self.cmd_add_files(template_name, list_of_files);
                 }
                 Commands::Apply {
                     template_name,
                     list_of_files,
                 } => {
-                    let mut template_folder = self.base_path.clone();
-                    template_folder.push(&template_name);
-                    if !template_folder.exists() {
-                        eprintln!("the template doesn't exist, you can create it by adding files to it usingtemplate add-files");
-                        return;
-                    }
-                    list_of_files.iter().for_each(|file| {
-                        let mut in_template_file = template_folder.clone();
-                        in_template_file.push(file.as_str());
-                        if let Err(err) = std::fs::copy(in_template_file, &file) {
-                            eprintln!("{err}");
-                        }
-                    });
+                    self.cmd_apply_from_template(template_name, list_of_files);
                 }
                 _ => {}
             }
+        }
+
+        fn cmd_apply_from_template(&self, template_name: String, list_of_files: Vec<String>) {
+            let mut template_folder = self.base_path.clone();
+            template_folder.push(&template_name);
+            if !template_folder.exists() {
+                eprintln!("the template doesn't exist, you can create it by adding files to it usingtemplate add-files");
+                return;
+            }
+            list_of_files.iter().for_each(|file| {
+                let mut in_template_file = template_folder.clone();
+                in_template_file.push(file.as_str());
+                if let Err(err) = std::fs::copy(in_template_file, &file) {
+                    eprintln!("{err}");
+                }
+            });
+        }
+
+        fn cmd_add_files(&self, template_name: String, list_of_files: Vec<String>) {
+            let mut template_folder = self.base_path.clone();
+            template_folder.push(&template_name);
+            if !template_folder.exists() {
+                if let Err(err) = std::fs::create_dir_all(&template_folder) {
+                    eprintln!("{err}");
+                    return;
+                }
+            }
+            list_of_files.iter().for_each(|file| {
+                let mut in_template_file = template_folder.clone();
+                in_template_file.push(file.as_str());
+                if let Err(err) = std::fs::copy(file, &in_template_file) {
+                    eprintln!("{err}");
+                }
+            });
         }
     }
 }
