@@ -5,11 +5,11 @@ use clap::Parser;
 #[command()]
 pub struct TemplateCli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Command,
 }
 
 #[derive(Debug, Parser)]
-pub enum Commands {
+pub enum Command {
     Apply {
         template_name: String,
         list_of_files: Vec<String>,
@@ -31,7 +31,6 @@ pub enum Commands {
     },
 }
 
-// TODO: maybe merge executor and templatecli structs?
 pub struct Executor {
     base_path: std::path::PathBuf,
 }
@@ -46,15 +45,15 @@ impl Executor {
         Self { base_path }
     }
 
-    pub fn run(&self, command: Commands) {
+    pub fn run(&self, command: Command) {
         match command {
-            Commands::AddFiles {
+            Command::AddFiles {
                 template_name,
                 list_of_files,
             } => {
                 self.cmd_add_files(template_name, list_of_files);
             }
-            Commands::Apply {
+            Command::Apply {
                 template_name,
                 list_of_files,
             } => {
