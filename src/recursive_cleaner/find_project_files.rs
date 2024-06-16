@@ -50,9 +50,7 @@ static MATCHERS: [ProjectMatcher; 4] = [
 ];
 
 fn get_project_lang(file_name: &std::ffi::OsStr) -> Option<ProjectLang> {
-    let Some(file_name) = file_name.to_str() else {
-        return None;
-    };
+    let file_name = file_name.to_str()?;
     MATCHERS.iter().find_map(|matcher| {
         if matcher.file == file_name {
             Some(matcher.lang)
@@ -74,7 +72,7 @@ pub fn iter(dir: &str) -> impl Iterator<Item = CustomDirEnt> {
             children.iter_mut().for_each(|dir_ent_result| {
                 let _ = dir_ent_result.as_mut().map(|dir_entry| {
                     dir_entry.client_state = get_project_lang(dir_entry.file_name());
-                    if let Some(_) = dir_entry.client_state {
+                    if dir_entry.client_state.is_some() {
                         count += 1;
                     }
                 });
@@ -90,5 +88,5 @@ pub fn iter(dir: &str) -> impl Iterator<Item = CustomDirEnt> {
             }
         },
     );
-    return walk_dir.into_iter().filter_map(|dirent| dirent.ok());
+    walk_dir.into_iter().filter_map(|dirent| dirent.ok())
 }

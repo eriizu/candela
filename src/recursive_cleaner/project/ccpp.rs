@@ -2,12 +2,6 @@ use regex::Regex;
 
 use super::FileKind;
 
-impl Default for FileKind {
-    fn default() -> Self {
-        FileKind::Other
-    }
-}
-
 impl std::fmt::Display for FileKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let to_write = match self {

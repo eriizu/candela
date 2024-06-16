@@ -2,12 +2,13 @@ use std::cell::RefCell;
 
 mod ccpp;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum FileKind {
     Source,
     Deliverable,
     Temporary,
     OtherElf,
+    #[default]
     Other,
 }
 
@@ -26,22 +27,18 @@ impl Project {
             })
             .collect();
 
-        let proj = Project {
+        Project {
             path: base_path.to_owned(),
             files,
             artefacts_sizes: RefCell::new(None),
-        };
-        proj
+        }
     }
 
     fn compute_artefacts_sizes(&self) {
         let sum: u64 = self
             .files
             .iter()
-            .filter(|entry| match entry.client_state {
-                FileKind::Temporary | FileKind::OtherElf => true,
-                _ => false,
-            })
+            .filter(|entry| matches!(entry.client_state, FileKind::Temporary | FileKind::OtherElf))
             .map(|file| file.path())
             .filter_map(|path| path.metadata().ok())
             .map(|meta| meta.len())
@@ -52,24 +49,11 @@ impl Project {
     fn get_or_compute_artefact_sizes(&self) -> u64 {
         let potential_value = *self.artefacts_sizes.borrow();
         if let Some(val) = potential_value {
-            return val;
+            val
         } else {
             self.compute_artefacts_sizes();
-            return self.get_or_compute_artefact_sizes();
+            self.get_or_compute_artefact_sizes()
         }
-    }
-    pub fn print_temp_and_deliverables(&self) {
-        self.files
-            .iter()
-            .filter(|file| match file.client_state {
-                FileKind::Temporary | FileKind::Deliverable => true,
-                _ => false,
-            })
-            .for_each(|file| {
-                if let Ok(tmp) = file.path().strip_prefix(&self.path) {
-                    println!("- {} {}", tmp.display(), file.client_state)
-                }
-            });
     }
 
     pub fn pretty_print(&self) {

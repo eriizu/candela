@@ -26,7 +26,7 @@ fn main() {
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 // INFO: ASCII candle copyright of Joan Stack
-const CANDLE_ASCII_ART: &'static str = r#"
+const CANDLE_ASCII_ART: &str = r#"
             )
            (_)
           .-'-.

@@ -30,10 +30,7 @@ impl RecursiveCleaner {
     {
         for arg in paths_to_search {
             find_project_files::iter(&arg)
-                .filter_map(|direntry| match direntry.client_state {
-                    Some(state) => Some((direntry, state)),
-                    _ => None,
-                })
+                .filter_map(|direntry| direntry.client_state.map(|state| (direntry, state)))
                 .for_each(|(direntry, state)| {
                     let mut path = direntry.path();
                     path.pop();
@@ -139,7 +136,7 @@ impl RecursiveCleaner {
                 has_cleaned_something = self.process_ccpp(path);
             }
         }
-        return has_cleaned_something;
+        has_cleaned_something
     }
 
     fn process_ccpp(&mut self, path: std::path::PathBuf) -> bool {
@@ -147,13 +144,15 @@ impl RecursiveCleaner {
         let to_remove: Vec<_> = project
             .files
             .iter()
-            .filter(|entry| match entry.client_state {
-                project::FileKind::Temporary | project::FileKind::OtherElf => true,
-                _ => false,
+            .filter(|entry| {
+                matches!(
+                    entry.client_state,
+                    project::FileKind::Temporary | project::FileKind::OtherElf
+                )
             })
             .map(|direntry| direntry.path())
             .collect();
-        if to_remove.len() != 0 {
+        if !to_remove.is_empty() {
             self.spinner.stop();
             print!("\r");
             project.pretty_print();
@@ -187,7 +186,7 @@ impl RecursiveCleaner {
                 return true;
             }
         }
-        return false;
+        false
     }
     fn spawn_and_wait_command(&mut self, mut cmd: std::process::Command) {
         if let Ok(output) = cmd.output() {

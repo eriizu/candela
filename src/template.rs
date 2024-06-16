@@ -58,7 +58,7 @@ impl Executor {
                 template_name,
                 list_of_files,
             } => {
-                if list_of_files.len() != 0 {
+                if !list_of_files.is_empty() {
                     self.cmd_apply_from_template_with_list(template_name, list_of_files);
                 } else {
                     self.cmd_apply_from_template_ask(template_name);
@@ -77,7 +77,7 @@ impl Executor {
         list_of_files.iter().for_each(|file| {
             let mut in_template_file = template_folder.clone();
             in_template_file.push(file.as_str());
-            if let Err(err) = std::fs::copy(in_template_file, &file) {
+            if let Err(err) = std::fs::copy(in_template_file, file) {
                 eprintln!("{err}");
             }
         });
@@ -103,7 +103,7 @@ impl Executor {
             .iter()
             .map(|path| {
                 if let Some(relative_comps) =
-                    crate::flattener::comps_after_root(&path, &template_folder)
+                    crate::flattener::comps_after_root(path, &template_folder)
                 {
                     let relative_path: PathBuf = relative_comps.collect();
                     return relative_path.to_str().unwrap().to_owned();
@@ -153,28 +153,4 @@ impl Executor {
             }
         });
     }
-}
-
-fn remove_common_parts<'a>(
-    path1: &'a std::path::Path,
-    path2: &'a std::path::Path,
-) -> (std::path::PathBuf, std::path::PathBuf) {
-    let mut components1 = path1.components();
-    let mut components2 = path2.components();
-
-    let mut common_components = vec![];
-
-    while let (Some(comp1), Some(comp2)) = (components1.next(), components2.next()) {
-        if comp1 == comp2 {
-            common_components.push(comp1);
-        } else {
-            break;
-        }
-    }
-
-    // Reconstruct the paths without the common prefix
-    let remaining_path1: std::path::PathBuf = components1.collect();
-    let remaining_path2: std::path::PathBuf = components2.collect();
-
-    (remaining_path1, remaining_path2)
 }
