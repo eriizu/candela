@@ -63,6 +63,8 @@ enum Commands {
 }
 
 mod template {
+    use std::path::PathBuf;
+
     use clap::Parser;
     #[derive(Debug, Parser)]
     #[command()]
@@ -134,13 +136,71 @@ mod template {
                 eprintln!("the template doesn't exist, you can create it by adding files to it usingtemplate add-files");
                 return;
             }
-            list_of_files.iter().for_each(|file| {
-                let mut in_template_file = template_folder.clone();
-                in_template_file.push(file.as_str());
-                if let Err(err) = std::fs::copy(in_template_file, &file) {
-                    eprintln!("{err}");
-                }
-            });
+            let walker = jwalk::WalkDir::new(&template_folder)
+                .skip_hidden(false)
+                .sort(true);
+            // let files: Vec<String> = walker
+            //     .into_iter()
+            //     .filter_map(|pot_direntry| pot_direntry.ok())
+            //     .filter(|dirent| !dirent.path().is_dir())
+            //     .filter_map(|dirent| dirent.path().to_str().map(|s| s.to_owned()))
+            //     .collect();
+            let paths: Vec<PathBuf> = walker
+                .into_iter()
+                .filter_map(|pot_direntry| pot_direntry.ok())
+                .filter(|dirent| !dirent.path().is_dir())
+                .map(|dirent| dirent.path())
+                .collect();
+            let files: Vec<String> = paths
+                .iter()
+                .map(|path| {
+                    if let Some(relative_comps) =
+                        crate::flattener::comps_after_root(&path, &template_folder)
+                    {
+                        let relative_path: PathBuf = relative_comps.collect();
+                        return relative_path.to_str().unwrap().to_owned();
+                    }
+                    return path.to_str().unwrap().to_owned();
+                })
+                .collect();
+
+            let map = {
+                let mut map: std::collections::HashMap<String, PathBuf> =
+                    std::collections::HashMap::new();
+                files.iter().zip(paths.iter()).for_each(|(key, value)| {
+                    map.insert(key.clone(), value.clone());
+                });
+                map
+            };
+            // let ans: Result<&str, InquireError> = Select::new("Depart from?", stops).prompt();
+            // let formatter: inquire::formatter::MultiOptionFormatter<'_, &str> =
+            //     &|a: std::path::PathBuf| {
+            //         let mut refpath = a.as_path();
+            //         if let Some(components) =
+            //             crate::flattener::comps_after_root(refpath, &template_folder)
+            //         {
+            //             let relative_path: PathBuf = components.collect();
+            //             relative_path.to_str().unwrap()
+            //         } else {
+            //             refpath.to_str().unwrap()
+            //         }
+            //         // refpath
+            //         // format!("{} different fruits", a.len())
+            //     };
+            let ans = inquire::MultiSelect::new("Files to apply", files).prompt();
+            if let Ok(ans) = ans {
+                ans.iter().for_each(|file_str| {
+                    // let mut in_template_file = template_folder.clone();
+                    // in_template_file.push(file.as_str());
+                    let dest = std::path::PathBuf::from(file_str);
+                    let src = map.get(file_str).unwrap();
+                    if let Err(err) = std::fs::copy(src, &dest) {
+                        eprintln!("{err}");
+                    } else {
+                        println!("{} -> {}", &src.display(), &dest.display());
+                    }
+                });
+            }
         }
 
         fn cmd_add_files(&self, template_name: String, list_of_files: Vec<String>) {
@@ -160,5 +220,29 @@ mod template {
                 }
             });
         }
+    }
+
+    fn remove_common_parts<'a>(
+        path1: &'a std::path::Path,
+        path2: &'a std::path::Path,
+    ) -> (std::path::PathBuf, std::path::PathBuf) {
+        let mut components1 = path1.components();
+        let mut components2 = path2.components();
+
+        let mut common_components = vec![];
+
+        while let (Some(comp1), Some(comp2)) = (components1.next(), components2.next()) {
+            if comp1 == comp2 {
+                common_components.push(comp1);
+            } else {
+                break;
+            }
+        }
+
+        // Reconstruct the paths without the common prefix
+        let remaining_path1: std::path::PathBuf = components1.collect();
+        let remaining_path2: std::path::PathBuf = components2.collect();
+
+        (remaining_path1, remaining_path2)
     }
 }

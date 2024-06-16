@@ -3,6 +3,7 @@ mod flatten;
 mod path;
 
 pub use cli::Cli;
+pub use path::comps_after_root;
 
 pub fn run(opts: Cli) {
     flatten::flatten(
