@@ -162,12 +162,6 @@ mod template {
             let walker = jwalk::WalkDir::new(&template_folder)
                 .skip_hidden(false)
                 .sort(true);
-            // let files: Vec<String> = walker
-            //     .into_iter()
-            //     .filter_map(|pot_direntry| pot_direntry.ok())
-            //     .filter(|dirent| !dirent.path().is_dir())
-            //     .filter_map(|dirent| dirent.path().to_str().map(|s| s.to_owned()))
-            //     .collect();
             let paths: Vec<PathBuf> = walker
                 .into_iter()
                 .filter_map(|pot_direntry| pot_direntry.ok())
@@ -195,11 +189,11 @@ mod template {
                 });
                 map
             };
-            let ans = inquire::MultiSelect::new("Files to apply", files).prompt();
+            let ans = inquire::MultiSelect::new("Files to apply", files)
+                .with_all_selected_by_default()
+                .prompt();
             if let Ok(ans) = ans {
                 ans.iter().for_each(|file_str| {
-                    // let mut in_template_file = template_folder.clone();
-                    // in_template_file.push(file.as_str());
                     let dest = std::path::PathBuf::from(file_str);
                     let src = map.get(file_str).unwrap();
                     if let Err(err) = std::fs::copy(src, &dest) {
