@@ -58,22 +58,37 @@ impl Executor {
                 template_name,
                 list_of_files,
             } => {
-                if !list_of_files.is_empty() {
-                    self.cmd_apply_from_template_with_list(template_name, list_of_files);
-                } else {
-                    self.cmd_apply_from_template_ask(template_name);
+                if let Some(template_folder) = self.get_template_folder(template_name) {
+                    if !list_of_files.is_empty() {
+                        self.cmd_apply_from_template_with_list(template_folder, list_of_files);
+                    } else {
+                        self.cmd_apply_from_template_ask(template_folder);
+                    }
                 }
             }
             _ => {}
         }
     }
-    fn cmd_apply_from_template_with_list(&self, template_name: String, list_of_files: Vec<String>) {
+
+    fn get_template_folder(&self, template_name: String) -> Option<PathBuf> {
         let mut template_folder = self.base_path.clone();
+        let comp_number = template_folder.components().count();
         template_folder.push(&template_name);
+        template_folder = template_folder.canonicalize().unwrap();
+        assert_eq!(comp_number + 1, template_folder.components().count());
         if !template_folder.exists() {
-            eprintln!("the template doesn't exist, you can create it by adding files to it usingtemplate add-files");
-            return;
+            eprintln!("the template doesn't exist, you can create it by adding files to it using template add-files");
+            None
+        } else {
+            Some(template_folder)
         }
+    }
+
+    fn cmd_apply_from_template_with_list(
+        &self,
+        template_folder: PathBuf,
+        list_of_files: Vec<String>,
+    ) {
         list_of_files.iter().for_each(|file| {
             let mut in_template_file = template_folder.clone();
             in_template_file.push(file.as_str());
@@ -83,13 +98,7 @@ impl Executor {
         });
     }
 
-    fn cmd_apply_from_template_ask(&self, template_name: String) {
-        let mut template_folder = self.base_path.clone();
-        template_folder.push(&template_name);
-        if !template_folder.exists() {
-            eprintln!("the template doesn't exist, you can create it by adding files to it usingtemplate add-files");
-            return;
-        }
+    fn cmd_apply_from_template_ask(&self, template_folder: PathBuf) {
         let walker = jwalk::WalkDir::new(&template_folder)
             .skip_hidden(false)
             .sort(true);
@@ -99,7 +108,7 @@ impl Executor {
             .filter(|dirent| !dirent.path().is_dir())
             .map(|dirent| dirent.path())
             .collect();
-        let files: Vec<String> = paths
+        let rel_file_string: Vec<String> = paths
             .iter()
             .map(|path| {
                 if let Some(relative_comps) =
@@ -115,12 +124,15 @@ impl Executor {
         let map = {
             let mut map: std::collections::HashMap<String, PathBuf> =
                 std::collections::HashMap::new();
-            files.iter().zip(paths.iter()).for_each(|(key, value)| {
-                map.insert(key.clone(), value.clone());
-            });
+            rel_file_string
+                .iter()
+                .zip(paths.iter())
+                .for_each(|(key, value)| {
+                    map.insert(key.clone(), value.clone());
+                });
             map
         };
-        let ans = inquire::MultiSelect::new("Files to apply", files)
+        let ans = inquire::MultiSelect::new("Files to apply", rel_file_string)
             .with_all_selected_by_default()
             .prompt();
         if let Ok(ans) = ans {
