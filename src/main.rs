@@ -123,13 +123,36 @@ mod template {
                     template_name,
                     list_of_files,
                 } => {
-                    self.cmd_apply_from_template(template_name, list_of_files);
+                    if list_of_files.len() != 0 {
+                        self.cmd_apply_from_template_with_list(template_name, list_of_files);
+                    } else {
+                        self.cmd_apply_from_template_ask(template_name);
+                    }
                 }
                 _ => {}
             }
         }
+        fn cmd_apply_from_template_with_list(
+            &self,
+            template_name: String,
+            list_of_files: Vec<String>,
+        ) {
+            let mut template_folder = self.base_path.clone();
+            template_folder.push(&template_name);
+            if !template_folder.exists() {
+                eprintln!("the template doesn't exist, you can create it by adding files to it usingtemplate add-files");
+                return;
+            }
+            list_of_files.iter().for_each(|file| {
+                let mut in_template_file = template_folder.clone();
+                in_template_file.push(file.as_str());
+                if let Err(err) = std::fs::copy(in_template_file, &file) {
+                    eprintln!("{err}");
+                }
+            });
+        }
 
-        fn cmd_apply_from_template(&self, template_name: String, list_of_files: Vec<String>) {
+        fn cmd_apply_from_template_ask(&self, template_name: String) {
             let mut template_folder = self.base_path.clone();
             template_folder.push(&template_name);
             if !template_folder.exists() {
@@ -172,21 +195,6 @@ mod template {
                 });
                 map
             };
-            // let ans: Result<&str, InquireError> = Select::new("Depart from?", stops).prompt();
-            // let formatter: inquire::formatter::MultiOptionFormatter<'_, &str> =
-            //     &|a: std::path::PathBuf| {
-            //         let mut refpath = a.as_path();
-            //         if let Some(components) =
-            //             crate::flattener::comps_after_root(refpath, &template_folder)
-            //         {
-            //             let relative_path: PathBuf = components.collect();
-            //             relative_path.to_str().unwrap()
-            //         } else {
-            //             refpath.to_str().unwrap()
-            //         }
-            //         // refpath
-            //         // format!("{} different fruits", a.len())
-            //     };
             let ans = inquire::MultiSelect::new("Files to apply", files).prompt();
             if let Ok(ans) = ans {
                 ans.iter().for_each(|file_str| {
