@@ -27,7 +27,7 @@ Example source:
       - strdup.c
 
 ```sh
-candela flatten --source=src --dest=dest $(find -name *.c")
+candela flatten --source=./src --dest=./dest $(find -name *.c")
 ```
 
 Produces dest folder containing:
@@ -45,6 +45,9 @@ Produces dest folder containing:
 
 If there are filename collisions, rerun with `-k` to keep path components inside
 the file names: `src/str/strdup.c` -> `src.str.strdup.c`.
+
+> [!warning]
+> Paths aren't canonicalized yet
 
 ## Cleanner
 
