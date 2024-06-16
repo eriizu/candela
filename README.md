@@ -1,6 +1,6 @@
 # Candela
 
-A collection of quality of life utilities that help me at my job.
+A collection of quality of life utilities that help me do my job.
 
 ## Flattener
 
@@ -27,7 +27,7 @@ Example source:
       - strdup.c
 
 ```sh
-candela flatten --source=./src --dest=./dest $(find -name *.c")
+candela flatten --source=./src --dest=./dest $(find -name "*.c")
 ```
 
 Produces dest folder containing:
@@ -51,12 +51,12 @@ the file names: `src/str/strdup.c` -> `src.str.strdup.c`.
 
 ## Cleanner
 
-The idea for this feature is born out of a simple enough problem: my works has me cloning
+The idea for this feature is born out of a simple enough problem: my work has me cloning
 a lot of repositories, install their dependancies, compile their source; and
 I don't always remmember to clean them right away.
 
 Going arround my filesystem, using `fd`, `yarn cache clean`, `cargo clean`,
-`make fclean`, `rm random_objet.o`, gets old very quickly. It sound like the perfect
+`make fclean`, `rm random_objet.o`, gets old very quickly. It sounds like the perfect
 job for a script or a program.
 
 Hence this feature. It does some of these tasks automatically. It can handle:
