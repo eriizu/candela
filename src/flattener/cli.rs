@@ -47,11 +47,12 @@ pub struct Cli {
     #[arg(short, long, help = KEEP_DIR_NAMES_HELP)]
     pub keep_dir_names: bool,
 
-    #[arg(short, long, help = ROOT_HELP)]
+    #[arg(short, long, help = ROOT_HELP, value_hint = clap::ValueHint::DirPath)]
     pub root: std::ffi::OsString,
 
-    #[arg(short, long, help = DEST_HELP)]
+    #[arg(short, long, help = DEST_HELP, value_hint = clap::ValueHint::DirPath)]
     pub dest: std::ffi::OsString,
 
+    #[arg(value_hint = clap::ValueHint::FilePath)]
     pub file_names: Vec<std::ffi::OsString>,
 }

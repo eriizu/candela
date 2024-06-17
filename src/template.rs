@@ -16,6 +16,7 @@ pub enum Command {
     },
     AddFiles {
         template_name: String,
+        #[arg(value_hint = clap::ValueHint::FilePath)]
         list_of_files: Vec<String>,
     },
     Cp {

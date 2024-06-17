@@ -2,7 +2,7 @@ mod flattener;
 mod recursive_cleaner;
 mod template;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
 
 fn main() {
     let opt = Cli::parse();
@@ -20,6 +20,9 @@ fn main() {
         }
         Commands::Template(opt) => {
             template::Executor::new().run(opt.command);
+        }
+        Commands::Completions { shell } => {
+            shell.generate(&mut Cli::command(), &mut std::io::stdout());
         }
     }
 }
@@ -56,9 +59,14 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
 
+        #[arg(value_hint = clap::ValueHint::DirPath)]
         base_dirs: Vec<String>,
     },
     Flatten(flattener::Cli),
     Version,
     Template(template::TemplateCli),
+    Completions {
+        #[arg(value_enum)]
+        shell: clap_complete_command::Shell,
+    },
 }
