@@ -1,3 +1,4 @@
+pub mod disk_usage;
 mod flattener;
 mod recursive_cleaner;
 mod template;
