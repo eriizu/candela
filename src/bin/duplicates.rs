@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use spinoff::{spinners, Spinner};
 use std::io::Read;
 
@@ -9,6 +10,8 @@ fn main() {
         .unwrap()
         .canonicalize()
         .unwrap();
+
+    // INFO: 1st step, walking and maping by filesize
     let mut spinner = Spinner::new(spinners::Dots, "Walking", None);
     let walk_dir = make_walkdir(dir);
     let mut file_by_sizes = map_path_by_filesize(walk_dir);
@@ -16,33 +19,50 @@ fn main() {
         "Done walking and mapping by filesize. {} files have a size equal to another file.",
         file_by_sizes.len()
     ));
+
+    // INFO: 2nd step, keep groups that contain multiple files
     let sizes_with_multiple_files = get_sizes_with_multiple_files(&file_by_sizes);
     file_by_sizes.retain(|key, _| sizes_with_multiple_files.contains(key));
+
+    // INFO: 3nd step, regroup files by the same contents
     let mut spinner = Spinner::new(spinners::Dots, "Mapping by content", None);
-    let mut content_match: Vec<Vec<&std::path::Path>> = vec![];
-    file_by_sizes.iter_all().for_each(|(_, files)| {
-        let (same, mut not_same) =
-            same_content_group_with_first(files.iter().map(|file| file.as_ref()));
-        if same.len() > 1 {
-            content_match.push(same);
-            // println!("these files are the same {:?}", same);
-        }
-        while not_same.len() >= 2 {
-            let (same, new_not_same) = same_content_group_with_first(not_same.iter().copied());
-            not_same = new_not_same;
+    let content_match_outer = get_files_with_same_content(&file_by_sizes);
+    let total_files = content_match_outer.iter().flatten().count();
+    spinner.success(&format!(
+        "Done with {} matches ({} files total)",
+        content_match_outer.len(),
+        total_files
+    ));
+    // dbg!(content_match);
+}
+
+fn get_files_with_same_content<'a>(
+    file_by_sizes: &'a MultiMap<u64, std::path::PathBuf>,
+) -> Vec<Vec<&'a std::path::Path>> {
+    file_by_sizes
+        .iter_all()
+        .par_bridge()
+        .map(|(_, files)| {
+            let mut content_match: Vec<Vec<&std::path::Path>> = vec![];
+
+            let (same, mut not_same) =
+                same_content_group_with_first(files.iter().map(|file| file.as_ref()));
             if same.len() > 1 {
                 content_match.push(same);
                 // println!("these files are the same {:?}", same);
             }
-        }
-    });
-    let total_files = content_match.iter().flatten().count();
-    spinner.success(&format!(
-        "Done with {} matches ({} files total)",
-        content_match.len(),
-        total_files
-    ));
-    // dbg!(content_match);
+            while not_same.len() >= 2 {
+                let (same, new_not_same) = same_content_group_with_first(not_same.iter().copied());
+                not_same = new_not_same;
+                if same.len() > 1 {
+                    content_match.push(same);
+                    // println!("these files are the same {:?}", same);
+                }
+            }
+            content_match
+        })
+        .flatten()
+        .collect()
 }
 
 /// Compare all file's contents to the first one in iterator. If they match they are returned in
