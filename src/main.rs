@@ -26,7 +26,7 @@ fn main() {
         Commands::Completions { shell } => {
             shell.generate(&mut Cli::command(), &mut std::io::stdout());
         }
-        Commands::Duplicates(cli) => duplicates::cli(cli),
+        Commands::Duplicates(cli) => cli.run(),
     }
 }
 

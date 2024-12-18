@@ -13,29 +13,17 @@ pub struct Cli {
     pub directories_to_scan: Vec<std::path::PathBuf>,
 }
 
-pub fn cli(cli: Cli) {
-    let mut dw = DuplicatesWalker::new(false);
-    let map = dw.make_filesize_map_for_paths(
-        cli.directories_to_scan
-            .iter()
-            .map(|pathbuf| pathbuf.as_ref()),
-    );
-    let groups = dw.gen_matching_file_groups(&map);
-
-    if let Some(output) = &cli.output {
-        let mut spinner = Spinner::new(
-            spinners::Dots,
-            format!("Serialising to \"{}\"", output.display()),
-            None,
+impl Cli {
+    pub fn run(&self) {
+        let mut dw = DuplicatesWalker::new(false);
+        let map = dw.make_filesize_map_for_paths(
+            self.directories_to_scan
+                .iter()
+                .map(|pathbuf| pathbuf.as_ref()),
         );
-        if let Err(err) = groups.to_file(output) {
-            spinner.fail(&format!(
-                "Failed serialisation to \"{}\"{}",
-                output.display(),
-                err
-            ));
-        } else {
-            spinner.success(&format!("Serialised to \"{}\"", output.display()));
+        let groups = dw.gen_matching_file_groups(&map);
+        if let Some(filepath) = &self.output {
+            output(groups, filepath);
         }
     }
 }
@@ -50,7 +38,6 @@ impl DuplicatesWalker {
         Self {
             quiet,
             spinner: None,
-            // file_by_sizes: multimap::multimap!(),
         }
     }
 
@@ -249,4 +236,21 @@ fn make_walkdir(dir: &std::path::Path) -> jwalk::WalkDirGeneric<(usize, u64)> {
             });
         },
     )
+}
+
+fn output(groups: MatchingFilesGroups, filepath: &std::path::Path) {
+    let mut spinner = Spinner::new(
+        spinners::Dots,
+        format!("Serialising to \"{}\"", filepath.display()),
+        None,
+    );
+    if let Err(err) = groups.to_file(filepath) {
+        spinner.fail(&format!(
+            "Failed serialisation to \"{}\"{}",
+            filepath.display(),
+            err
+        ));
+    } else {
+        spinner.success(&format!("Serialised to \"{}\"", filepath.display()));
+    }
 }
