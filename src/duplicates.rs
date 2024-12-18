@@ -3,14 +3,50 @@ use rayon::prelude::*;
 use spinoff::{spinners, Spinner};
 use std::io::Read;
 
-struct DuplicatesWalker {
+#[derive(clap::Args, Debug)]
+#[command()]
+pub struct Cli {
+    #[arg(short, long, value_hint = clap::ValueHint::DirPath)]
+    pub output: Option<std::path::PathBuf>,
+
+    #[arg(value_hint = clap::ValueHint::FilePath)]
+    pub directories_to_scan: Vec<std::path::PathBuf>,
+}
+
+pub fn cli(cli: Cli) {
+    let mut dw = DuplicatesWalker::new(false);
+    let map = dw.make_filesize_map_for_paths(
+        cli.directories_to_scan
+            .iter()
+            .map(|pathbuf| pathbuf.as_ref()),
+    );
+    let groups = dw.gen_matching_file_groups(&map);
+
+    if let Some(output) = &cli.output {
+        let mut spinner = Spinner::new(
+            spinners::Dots,
+            format!("Serialising to \"{}\"", output.display()),
+            None,
+        );
+        if let Err(err) = groups.to_file(output) {
+            spinner.fail(&format!(
+                "Failed serialisation to \"{}\"{}",
+                output.display(),
+                err
+            ));
+        } else {
+            spinner.success(&format!("Serialised to \"{}\"", output.display()));
+        }
+    }
+}
+
+pub struct DuplicatesWalker {
     quiet: bool,
     spinner: Option<Spinner>,
-    // file_by_sizes: MultiMap<u64, std::path::PathBuf>,
 }
 
 impl DuplicatesWalker {
-    fn new(quiet: bool) -> Self {
+    pub fn new(quiet: bool) -> Self {
         Self {
             quiet,
             spinner: None,
@@ -18,7 +54,7 @@ impl DuplicatesWalker {
         }
     }
 
-    fn make_filesize_map_for_paths<'a>(
+    pub fn make_filesize_map_for_paths<'a>(
         &mut self,
         paths: impl Iterator<Item = &'a std::path::Path>,
     ) -> MultiMap<u64, std::path::PathBuf> {
@@ -49,7 +85,7 @@ impl DuplicatesWalker {
         file_by_sizes
     }
 
-    fn gen_matching_file_groups(
+    pub fn gen_matching_file_groups(
         &mut self,
         file_by_sizes: &MultiMap<u64, std::path::PathBuf>,
     ) -> MatchingFilesGroups {
@@ -73,12 +109,12 @@ impl DuplicatesWalker {
 }
 
 #[derive(serde::Serialize)]
-struct MatchingFilesGroups {
+pub struct MatchingFilesGroups {
     groups: Vec<Vec<std::path::PathBuf>>,
 }
 
 impl MatchingFilesGroups {
-    fn from_size_groups(file_by_sizes: &MultiMap<u64, std::path::PathBuf>) -> Self {
+    pub fn from_size_groups(file_by_sizes: &MultiMap<u64, std::path::PathBuf>) -> Self {
         let out: Vec<Vec<std::path::PathBuf>> = file_by_sizes
             .iter_all()
             .par_bridge()
@@ -105,38 +141,21 @@ impl MatchingFilesGroups {
         Self { groups: out }
     }
 
-    fn total_files(&self) -> usize {
+    pub fn total_files(&self) -> usize {
         self.groups.iter().flatten().count()
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.groups.len()
     }
 
-    fn to_file(&self) -> std::io::Result<()> {
+    pub fn to_file(&self, dest: &std::path::Path) -> std::io::Result<()> {
         let out_file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
-            .open("./tata.json")?;
+            .open(dest)?;
         serde_json::to_writer(out_file, self)?;
         Ok(())
-    }
-}
-
-fn main() {
-    let paths: Vec<_> = std::env::args()
-        .skip(1)
-        .filter_map(|arg| std::path::PathBuf::from(arg).canonicalize().ok())
-        .collect();
-    let mut dw = DuplicatesWalker::new(false);
-    let map = dw.make_filesize_map_for_paths(paths.iter().map(|pathbuf| pathbuf.as_ref()));
-    let groups = dw.gen_matching_file_groups(&map);
-
-    let mut spinner = Spinner::new(spinners::Dots, "Serialising to \"tata.json\"", None);
-    if let Err(err) = groups.to_file() {
-        spinner.fail(&format!("Failed serialisation to \"tata.json\"{}", err));
-    } else {
-        spinner.success("Serialised to \"tata.json\"");
     }
 }
 

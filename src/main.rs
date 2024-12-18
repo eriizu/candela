@@ -1,4 +1,5 @@
 pub mod disk_usage;
+mod duplicates;
 mod flattener;
 mod recursive_cleaner;
 mod template;
@@ -25,6 +26,7 @@ fn main() {
         Commands::Completions { shell } => {
             shell.generate(&mut Cli::command(), &mut std::io::stdout());
         }
+        Commands::Duplicates(cli) => duplicates::cli(cli),
     }
 }
 
@@ -70,4 +72,5 @@ enum Commands {
         #[arg(value_enum)]
         shell: clap_complete_command::Shell,
     },
+    Duplicates(duplicates::Cli),
 }
