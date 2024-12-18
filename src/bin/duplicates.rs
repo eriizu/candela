@@ -4,71 +4,147 @@ use std::io::Read;
 
 use multimap::MultiMap;
 
-fn main() {
-    let dir = std::env::args().nth(1).unwrap();
-    let dir = std::path::PathBuf::try_from(dir)
-        .unwrap()
-        .canonicalize()
-        .unwrap();
-
-    // INFO: 1st step, walking and maping by filesize
-    let mut spinner = Spinner::new(spinners::Dots, "Walking", None);
-    let walk_dir = make_walkdir(dir);
-    let mut file_by_sizes = map_path_by_filesize(walk_dir);
-    spinner.success(&format!(
-        "Done walking and mapping by filesize. {} files have a size equal to another file.",
-        file_by_sizes.len()
-    ));
-
-    // INFO: 2nd step, keep groups that contain multiple files
-    let sizes_with_multiple_files = get_sizes_with_multiple_files(&file_by_sizes);
-    file_by_sizes.retain(|key, _| sizes_with_multiple_files.contains(key));
-
-    // INFO: 3nd step, regroup files by the same contents
-    let mut spinner = Spinner::new(spinners::Dots, "Mapping by content", None);
-    let content_match_outer = get_files_with_same_content(&file_by_sizes);
-    let total_files = content_match_outer.iter().flatten().count();
-    spinner.success(&format!(
-        "Done with {} matches ({} files total)",
-        content_match_outer.len(),
-        total_files
-    ));
-    // dbg!(content_match);
+struct DuplicatesWalker {
+    quiet: bool,
+    spinner: Option<Spinner>,
+    // file_by_sizes: MultiMap<u64, std::path::PathBuf>,
 }
 
-fn get_files_with_same_content<'a>(
-    file_by_sizes: &'a MultiMap<u64, std::path::PathBuf>,
-) -> Vec<Vec<&'a std::path::Path>> {
-    file_by_sizes
-        .iter_all()
-        .par_bridge()
-        .map(|(_, files)| {
-            let mut content_match: Vec<Vec<&std::path::Path>> = vec![];
+impl DuplicatesWalker {
+    fn new(quiet: bool) -> Self {
+        Self {
+            quiet,
+            spinner: None,
+            // file_by_sizes: multimap::multimap!(),
+        }
+    }
 
-            let (same, mut not_same) =
-                same_content_group_with_first(files.iter().map(|file| file.as_ref()));
-            if same.len() > 1 {
-                content_match.push(same);
-                // println!("these files are the same {:?}", same);
-            }
-            while not_same.len() >= 2 {
-                let (same, new_not_same) = same_content_group_with_first(not_same.iter().copied());
-                not_same = new_not_same;
-                if same.len() > 1 {
-                    content_match.push(same);
-                    // println!("these files are the same {:?}", same);
+    fn make_filesize_map_for_paths<'a>(
+        &mut self,
+        paths: impl Iterator<Item = &'a std::path::Path>,
+    ) -> MultiMap<u64, std::path::PathBuf> {
+        if !self.quiet {
+            self.spinner = Some(Spinner::new(spinners::Dots, "Walking", None));
+        }
+        let file_by_sizes: MultiMap<u64, std::path::PathBuf> = paths
+            .map(|path| {
+                if let Some(spinner) = &mut self.spinner {
+                    let msg = format!("Walking {}", path.display());
+                    spinner.update_text(msg);
                 }
-            }
-            content_match
-        })
-        .flatten()
-        .collect()
+                make_walkdir(path)
+                    .into_iter()
+                    .filter_map(|dir_ent_res| dir_ent_res.ok())
+                    .filter(|dir_ent| dir_ent.path().is_file())
+                    .map(|dir_ent| (dir_ent.client_state, dir_ent.path()))
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+        if let Some(spinner) = &mut self.spinner {
+            spinner.success(&format!(
+                "Done walking and mapping by filesize. {} files have a size equal to another file.",
+                file_by_sizes.len()
+            ));
+        }
+        file_by_sizes
+    }
+
+    fn gen_matching_file_groups(
+        &mut self,
+        file_by_sizes: &MultiMap<u64, std::path::PathBuf>,
+    ) -> MatchingFilesGroups {
+        if !self.quiet {
+            self.spinner = Some(Spinner::new(
+                spinners::Dots,
+                "Scanning content, making groups...",
+                None,
+            ));
+        }
+        let out = MatchingFilesGroups::from_size_groups(file_by_sizes);
+        if let Some(spinner) = &mut self.spinner {
+            spinner.success(&format!(
+                "Done with {} matches ({} files total)",
+                out.len(),
+                out.total_files()
+            ));
+        }
+        out
+    }
+}
+
+#[derive(serde::Serialize)]
+struct MatchingFilesGroups {
+    groups: Vec<Vec<std::path::PathBuf>>,
+}
+
+impl MatchingFilesGroups {
+    fn from_size_groups(file_by_sizes: &MultiMap<u64, std::path::PathBuf>) -> Self {
+        let out: Vec<Vec<std::path::PathBuf>> = file_by_sizes
+            .iter_all()
+            .par_bridge()
+            .map(|(_, files)| {
+                let mut same_content_groups: Vec<Vec<std::path::PathBuf>> = vec![];
+                let mut not_checked: Vec<&std::path::Path> =
+                    files.iter().map(|path| path.as_ref()).collect();
+
+                loop {
+                    let (mut same, not_same) = group_same_content(not_checked.iter().copied());
+                    not_checked = not_same;
+                    if same.len() > 1 {
+                        same_content_groups
+                            .push(same.drain(..).map(|item| item.to_owned()).collect());
+                    }
+                    if not_checked.len() < 2 {
+                        break;
+                    }
+                }
+                same_content_groups
+            })
+            .flatten()
+            .collect();
+        Self { groups: out }
+    }
+
+    fn total_files(&self) -> usize {
+        self.groups.iter().flatten().count()
+    }
+
+    fn len(&self) -> usize {
+        self.groups.len()
+    }
+
+    fn to_file(&self) -> std::io::Result<()> {
+        let out_file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open("./tata.json")?;
+        serde_json::to_writer(out_file, self)?;
+        Ok(())
+    }
+}
+
+fn main() {
+    let paths: Vec<_> = std::env::args()
+        .skip(1)
+        .filter_map(|arg| std::path::PathBuf::from(arg).canonicalize().ok())
+        .collect();
+    let mut dw = DuplicatesWalker::new(false);
+    let map = dw.make_filesize_map_for_paths(paths.iter().map(|pathbuf| pathbuf.as_ref()));
+    let groups = dw.gen_matching_file_groups(&map);
+
+    let mut spinner = Spinner::new(spinners::Dots, "Serialising to \"tata.json\"", None);
+    if let Err(err) = groups.to_file() {
+        spinner.fail(&format!("Failed serialisation to \"tata.json\"{}", err));
+    } else {
+        spinner.success("Serialised to \"tata.json\"");
+    }
 }
 
 /// Compare all file's contents to the first one in iterator. If they match they are returned in
 /// the first vector (among with the first file) if they dont they are returned in the second
 /// vector.
-fn same_content_group_with_first<'a>(
+fn group_same_content<'a>(
     file_paths: impl Iterator<Item = &'a std::path::Path>,
 ) -> (Vec<&'a std::path::Path>, Vec<&'a std::path::Path>) {
     let mut buf1 = [0; 2048];
@@ -111,31 +187,8 @@ fn same_content_group_with_first<'a>(
     (matching, not_matching)
 }
 
-/// Creates a set of all file size where multiple match exists for further checks.
-fn get_sizes_with_multiple_files(
-    patate: &MultiMap<u64, std::path::PathBuf>,
-) -> std::collections::HashSet<u64> {
-    patate
-        .keys()
-        .filter(|key| patate.is_vec(key))
-        .copied()
-        .collect::<std::collections::HashSet<_>>()
-}
-
-/// Consume walkdir and create a multimap that regroups files of the same size.
-fn map_path_by_filesize(
-    walk_dir: jwalk::WalkDirGeneric<(usize, u64)>,
-) -> MultiMap<u64, std::path::PathBuf> {
-    walk_dir
-        .into_iter()
-        .filter_map(|dir_ent| dir_ent.ok())
-        .filter(|dir_ent| dir_ent.path().is_file())
-        .map(|dir_ent| (dir_ent.client_state, dir_ent.path()))
-        .collect()
-}
-
 /// Create a walkdir where dirent are associated with the file sizes.
-fn make_walkdir(dir: std::path::PathBuf) -> jwalk::WalkDirGeneric<(usize, u64)> {
+fn make_walkdir(dir: &std::path::Path) -> jwalk::WalkDirGeneric<(usize, u64)> {
     jwalk::WalkDirGeneric::<(usize, u64)>::new(dir).process_read_dir(
         |_depth, _path, _rd_state, children| {
             {
