@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
 use clap::Parser;
 #[derive(Debug, Parser)]
@@ -30,6 +30,7 @@ pub enum Command {
     Rm {
         template_name: String,
     },
+    Ls,
 }
 
 pub struct Executor {
@@ -66,7 +67,30 @@ impl Executor {
                     }
                 }
             }
-            _ => {}
+            Command::Ls => {
+                let Ok(read_dir) = std::fs::read_dir(&self.base_path) else {
+                    return;
+                };
+                let mut paths = read_dir
+                    .into_iter()
+                    .filter_map(|dir_ent_res| dir_ent_res.ok())
+                    .filter_map(|dir_ent| {
+                        dir_ent
+                            .path()
+                            .file_name()
+                            .map(|file_name| file_name.to_os_string())
+                    })
+                    .filter(|file_name| file_name.as_encoded_bytes()[0] != b'.')
+                    .collect::<Vec<_>>();
+                paths.sort();
+                paths.iter().for_each(|item| {
+                    let _ = std::io::stdout().write(item.as_encoded_bytes());
+                    let _ = std::io::stdout().write(&[b'\n']).unwrap();
+                });
+            }
+            _ => {
+                todo!();
+            }
         }
     }
 
