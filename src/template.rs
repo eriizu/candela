@@ -85,7 +85,7 @@ impl Executor {
                 paths.sort();
                 paths.iter().for_each(|item| {
                     let _ = std::io::stdout().write(item.as_encoded_bytes());
-                    let _ = std::io::stdout().write(&[b'\n']).unwrap();
+                    let _ = std::io::stdout().write(b"\n").unwrap();
                 });
             }
             _ => {
@@ -141,7 +141,7 @@ impl Executor {
                     let relative_path: PathBuf = relative_comps.collect();
                     return relative_path.to_str().unwrap().to_owned();
                 }
-                return path.to_str().unwrap().to_owned();
+                path.to_str().unwrap().to_owned()
             })
             .collect();
 

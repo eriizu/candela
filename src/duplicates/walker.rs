@@ -24,7 +24,7 @@ impl DuplicatesWalker {
             self.spinner = Some(Spinner::new(spinners::Dots, "Walking", None));
         }
         let file_by_sizes: MultiMap<u64, std::path::PathBuf> = paths
-            .map(|path| {
+            .flat_map(|path| {
                 if let Some(spinner) = &mut self.spinner {
                     let msg = format!("Walking {}", path.display());
                     spinner.update_text(msg);
@@ -36,7 +36,6 @@ impl DuplicatesWalker {
                     .map(|dir_ent| (dir_ent.client_state, dir_ent.path()))
                     .collect::<Vec<_>>()
             })
-            .flatten()
             .collect();
         if let Some(spinner) = &mut self.spinner {
             spinner.success(&format!(
@@ -120,12 +119,13 @@ impl MatchingFilesGroups {
         let out_file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(dest)?;
         serde_json::to_writer(out_file, self)?;
         Ok(())
     }
 
-    pub fn as_string_iters<'a>(&'a self) -> impl Iterator<Item = impl Iterator<Item = &'a str>> {
+    pub fn as_string_iters(&self) -> impl Iterator<Item = impl Iterator<Item = &'_ str>> {
         self.groups
             .iter()
             .map(|group| group.iter().filter_map(|path| path.to_str()))
@@ -172,7 +172,7 @@ fn group_same_content<'a>(
                 not_matching.push(path);
                 return false;
             }
-            return true;
+            true
         });
     }
     (matching, not_matching)
@@ -210,7 +210,7 @@ fn retain_not_hidden_and_add_size_on_state(
 
 /// Tell walkdir not to go in the hardcoded list of directories.
 fn do_not_enter_some_directories(
-    children: &mut Vec<Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>>,
+    children: &mut [Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>],
 ) {
     children
         .iter_mut()
@@ -228,9 +228,7 @@ fn do_not_enter_some_directories(
 }
 
 /// This sets all read_path to None so that walkir doesn't go any deeper in this directory.
-fn stop_walking_in_git_repo(
-    children: &mut Vec<Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>>,
-) {
+fn stop_walking_in_git_repo(children: &mut [Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>]) {
     let stop_walking = children
         .iter()
         .filter_map(|dir_ent_res| dir_ent_res.as_ref().ok())

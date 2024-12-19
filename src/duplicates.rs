@@ -29,7 +29,7 @@ impl Cli {
             Some(value) => value,
             None => return,
         };
-        if to_delete.len() == 0 {
+        if to_delete.is_empty() {
             println!("There is nothing to do.");
             return;
         }
@@ -91,7 +91,7 @@ fn ask_for_what_files_to_delete(
                 {
                     selected
                         .iter()
-                        .map(|item| std::path::PathBuf::from(item))
+                        .map(std::path::PathBuf::from)
                         .for_each(|path| {
                             to_delete.insert(path);
                         });

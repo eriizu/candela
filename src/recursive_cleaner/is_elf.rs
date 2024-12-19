@@ -1,5 +1,6 @@
 use std::io::Read;
 
+#[allow(dead_code)]
 pub enum IsElfError {
     Io {
         kind: std::io::ErrorKind,
