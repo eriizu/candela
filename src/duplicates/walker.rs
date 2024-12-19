@@ -58,7 +58,8 @@ impl DuplicatesWalker {
                 None,
             ));
         }
-        let out = MatchingFilesGroups::from_size_groups(file_by_sizes);
+        let mut out = MatchingFilesGroups::from_size_groups(file_by_sizes);
+        out.sort();
         if let Some(spinner) = &mut self.spinner {
             spinner.success(&format!(
                 "Done with {} matches ({} files total)",
@@ -101,6 +102,10 @@ impl MatchingFilesGroups {
             .flatten()
             .collect();
         Self { groups: out }
+    }
+
+    pub fn sort(&mut self) {
+        self.groups.sort_by(|a, b| a[0].cmp(&b[0]));
     }
 
     pub fn total_files(&self) -> usize {
