@@ -121,7 +121,15 @@ impl RecursiveCleaner {
                 nm_path.push("node_modules");
                 if nm_path.exists() {
                     if let Err(err) = std::fs::remove_dir_all(&nm_path) {
-                        eprintln!("clean project: npm: {}", err);
+                        eprintln!("clean project: {}: {}", nm_path.display(), err);
+                    }
+                    has_cleaned_something = true;
+                }
+                let mut dist_path = path.to_owned();
+                dist_path.push("dist");
+                if dist_path.is_dir() {
+                    if let Err(err) = std::fs::remove_dir_all(&dist_path) {
+                        eprintln!("clean project: {}: {}", dist_path.display(), err);
                     }
                     has_cleaned_something = true;
                 }
