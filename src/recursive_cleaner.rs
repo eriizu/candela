@@ -15,7 +15,7 @@ pub struct RecursiveCleaner {
 impl RecursiveCleaner {
     pub fn new(force: bool) -> Self {
         Self {
-            spinner: Spinner::new(spinners::Dots, "Scaning and deleting...", None),
+            spinner: Spinner::new(spinners::BouncingBar, "Scaning and deleting", None),
             n_processed: 0,
             n_cleaned: 0,
             usage_difference: 0,
@@ -23,7 +23,7 @@ impl RecursiveCleaner {
         }
     }
     fn restart_spinner(&mut self) {
-        self.spinner = Spinner::new(spinners::Dots, "Scaning and deleting...", None);
+        self.spinner = Spinner::new(spinners::BouncingBar, "Scaning and deleting", None);
     }
 
     pub fn run<T>(&mut self, paths_to_search: T)
@@ -95,7 +95,7 @@ impl RecursiveCleaner {
                     tmp
                 };
                 let mut cmd = std::process::Command::new("yarn");
-                cmd.arg("cache").arg("clean").arg("--all").current_dir(path);
+                cmd.arg("cache").arg("clean").current_dir(path);
                 self.spawn_and_wait_command(cmd);
                 if yarn_install_state_path.exists() {
                     if let Err(err) = std::fs::remove_file(yarn_install_state_path) {
@@ -148,7 +148,7 @@ impl RecursiveCleaner {
                 }
             }
             find_project_files::ProjectLang::CCpp => {
-                has_cleaned_something = self.process_ccpp(path);
+                has_cleaned_something = self.process_unix_ccpp(path);
             }
         }
         let after_clean_size = super::disk_usage::get_disk_usage(path);
@@ -166,7 +166,7 @@ impl RecursiveCleaner {
     //     file_names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
     // }
 
-    fn process_ccpp(&mut self, path: &std::path::Path) -> bool {
+    fn process_unix_ccpp(&mut self, path: &std::path::Path) -> bool {
         let project = project::Project::from_c_project_path(path);
         let to_remove: Vec<_> = project
             .files
@@ -202,7 +202,7 @@ impl RecursiveCleaner {
                 inquire::Confirm::new("proceed ?")
                     .with_default(true)
                     .prompt()
-                    .unwrap()
+                    .unwrap_or(false)
             };
             self.restart_spinner();
             if ans {

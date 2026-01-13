@@ -35,15 +35,15 @@ fn is_to_retain(dir_entry: &CustomDirEnt) -> bool {
 static MATCHERS: once_cell::sync::Lazy<[FileMatcher; 3]> = once_cell::sync::Lazy::new(|| {
     [
         FileMatcher {
-            regex: Regex::new(r".+\.(a|out|so)$").unwrap(),
+            regex: Regex::new(r".+\.(a|out|so)$").expect("the regex to be valid"),
             kind: FileKind::Deliverable,
         },
         FileMatcher {
-            regex: Regex::new(r".+\.(o|gch)$").unwrap(),
+            regex: Regex::new(r".+\.(o|gch)$").expect("the regex to be valid"),
             kind: FileKind::Temporary,
         },
         FileMatcher {
-            regex: Regex::new(r".+\.(c|h|cpp|hpp|cc|hh)$").unwrap(),
+            regex: Regex::new(r".+\.(c|h|cpp|hpp|cc|hh)$").expect("the regex to be valid"),
             kind: FileKind::Source,
         },
     ]
@@ -62,8 +62,10 @@ fn tag_file(dir_entry: &mut CustomDirEnt) {
     }) {
         Some(kind) => dir_entry.client_state = kind,
         _ => {
-            if super::super::is_elf::is_elf(dir_entry.path()).unwrap_or(false) {
-                dir_entry.client_state = FileKind::OtherElf;
+            if let Ok(Some(kind)) = infer::get_from_path(dir_entry.path()) {
+                if matches!(kind.extension(), "elf" | "exe") {
+                    dir_entry.client_state = FileKind::OtherElf;
+                }
             }
         }
     };

@@ -30,7 +30,7 @@ struct ProjectMatcher {
     file: &'static str,
 }
 
-static MATCHERS: [ProjectMatcher; 5] = [
+static MATCHERS: [ProjectMatcher; 6] = [
     ProjectMatcher {
         lang: ProjectLang::CCpp,
         file: "Makefile",
@@ -46,6 +46,10 @@ static MATCHERS: [ProjectMatcher; 5] = [
     ProjectMatcher {
         lang: ProjectLang::Npm,
         file: "package-lock.json",
+    },
+    ProjectMatcher {
+        lang: ProjectLang::Npm,
+        file: "bun.lockb",
     },
     ProjectMatcher {
         lang: ProjectLang::Npm,
