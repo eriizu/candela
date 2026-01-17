@@ -1,6 +1,7 @@
 use multimap::MultiMap;
 use rayon::prelude::*;
 use spinoff::{spinners, Spinner};
+use std::ffi::OsStr;
 use std::io::Read;
 
 pub struct DuplicatesWalker {
@@ -21,7 +22,7 @@ impl DuplicatesWalker {
         paths: impl Iterator<Item = &'a std::path::Path>,
     ) -> MultiMap<u64, std::path::PathBuf> {
         if !self.quiet {
-            self.spinner = Some(Spinner::new(spinners::Dots, "Walking", None));
+            self.spinner = Some(Spinner::new(spinners::Cute, "Walking", None));
         }
         let file_by_sizes: MultiMap<u64, std::path::PathBuf> = paths
             .flat_map(|path| {
@@ -52,7 +53,7 @@ impl DuplicatesWalker {
     ) -> MatchingFilesGroups {
         if !self.quiet {
             self.spinner = Some(Spinner::new(
-                spinners::Dots,
+                spinners::Cute,
                 "Scanning content, making groups...",
                 None,
             ));
@@ -180,13 +181,13 @@ fn group_same_content<'a>(
 
 /// Create a walkdir where dirent are associated with the file sizes.
 fn make_walkdir(dir: &std::path::Path) -> jwalk::WalkDirGeneric<(usize, u64)> {
-    jwalk::WalkDirGeneric::<(usize, u64)>::new(dir).process_read_dir(
-        |_depth, _path, _rd_state, children| {
+    jwalk::WalkDirGeneric::<(usize, u64)>::new(dir)
+        .skip_hidden(false)
+        .process_read_dir(|_depth, _path, _rd_state, children| {
             stop_walking_in_git_repo(children);
             do_not_enter_some_directories(children);
             retain_not_hidden_and_add_size_on_state(children);
-        },
-    )
+        })
 }
 
 /// Removed hidden files from yielded files and add file len to their client_state for further
@@ -224,20 +225,34 @@ fn do_not_enter_some_directories(
             ]
             .contains(&dir_ent.file_name())
         })
-        .for_each(|dir_ent| dir_ent.read_children_path = None);
+        .for_each(|dir_ent| {
+            dir_ent.read_children_path = None;
+        });
 }
+
+static FORBIDDEN_DIR_FILE_MARKERS: once_cell::sync::Lazy<[&'static OsStr; 5]> =
+    once_cell::sync::Lazy::new(|| {
+        [
+            OsStr::new(".git"),
+            OsStr::new("Cargo.toml"),
+            OsStr::new("Cargo.lock"),
+            OsStr::new("package.json"),
+            OsStr::new(".ignore-dups.flag"),
+        ]
+    });
 
 /// This sets all read_path to None so that walkir doesn't go any deeper in this directory.
 fn stop_walking_in_git_repo(children: &mut [Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>]) {
     let stop_walking = children
         .iter()
         .filter_map(|dir_ent_res| dir_ent_res.as_ref().ok())
-        .filter(|dir_ent| std::fs::FileType::is_dir(&dir_ent.file_type()))
-        .any(|dir_ent| dir_ent.file_name() == ".git");
+        .any(|dir_ent| FORBIDDEN_DIR_FILE_MARKERS.contains(&dir_ent.file_name()));
     if stop_walking {
         children
             .iter_mut()
             .filter_map(|dir_ent_res| dir_ent_res.as_mut().ok())
-            .for_each(|dir_ent| dir_ent.read_children_path = None);
+            .for_each(|dir_ent| {
+                dir_ent.read_children_path = None;
+            });
     }
 }
