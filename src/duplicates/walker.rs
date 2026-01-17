@@ -184,9 +184,12 @@ fn make_walkdir(dir: &std::path::Path) -> jwalk::WalkDirGeneric<(usize, u64)> {
     jwalk::WalkDirGeneric::<(usize, u64)>::new(dir)
         .skip_hidden(false)
         .process_read_dir(|_depth, _path, _rd_state, children| {
-            stop_walking_in_git_repo(children);
-            do_not_enter_some_directories(children);
-            retain_not_hidden_and_add_size_on_state(children);
+            if contains_forbidden_marker(children) {
+                children.clear();
+            } else {
+                do_not_enter_forbidden_dir(children);
+                retain_not_hidden_and_add_size_on_state(children);
+            }
         })
 }
 
@@ -209,22 +212,25 @@ fn retain_not_hidden_and_add_size_on_state(
     });
 }
 
-/// Tell walkdir not to go in the hardcoded list of directories.
-fn do_not_enter_some_directories(
+static FORBIDDEN_DIR_NAMES: once_cell::sync::Lazy<[&'static OsStr; 3]> =
+    once_cell::sync::Lazy::new(|| {
+        [
+            OsStr::new("node_modules"),
+            OsStr::new("delivery"),
+            OsStr::new(".git"),
+        ]
+    });
+
+/// Some children dirs are deemed out of bounds by their name. This sets their read_children_path
+/// to None so that jwalk does not traverse them.
+fn do_not_enter_forbidden_dir(
     children: &mut [Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>],
 ) {
     children
         .iter_mut()
         .filter_map(|dir_ent_res| dir_ent_res.as_mut().ok())
         .filter(|dir_ent| std::fs::FileType::is_dir(&dir_ent.file_type()))
-        .filter(|dir_ent| {
-            [
-                std::ffi::OsStr::new("node_modules"),
-                std::ffi::OsStr::new("delivery"),
-                std::ffi::OsStr::new(".git"),
-            ]
-            .contains(&dir_ent.file_name())
-        })
+        .filter(|dir_ent| FORBIDDEN_DIR_NAMES.contains(&dir_ent.file_name()))
         .for_each(|dir_ent| {
             dir_ent.read_children_path = None;
         });
@@ -241,18 +247,13 @@ static FORBIDDEN_DIR_FILE_MARKERS: once_cell::sync::Lazy<[&'static OsStr; 5]> =
         ]
     });
 
-/// This sets all read_path to None so that walkir doesn't go any deeper in this directory.
-fn stop_walking_in_git_repo(children: &mut [Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>]) {
-    let stop_walking = children
+/// Some folders are deemed out of bounds depending on if they contain a flag or something that
+/// indicates they are code repositories. This sets all read_children_path to None so that walkir doesn't go any deeper in this directory.
+fn contains_forbidden_marker(
+    children: &mut [Result<jwalk::DirEntry<(usize, u64)>, jwalk::Error>],
+) -> bool {
+    children
         .iter()
         .filter_map(|dir_ent_res| dir_ent_res.as_ref().ok())
-        .any(|dir_ent| FORBIDDEN_DIR_FILE_MARKERS.contains(&dir_ent.file_name()));
-    if stop_walking {
-        children
-            .iter_mut()
-            .filter_map(|dir_ent_res| dir_ent_res.as_mut().ok())
-            .for_each(|dir_ent| {
-                dir_ent.read_children_path = None;
-            });
-    }
+        .any(|dir_ent| FORBIDDEN_DIR_FILE_MARKERS.contains(&dir_ent.file_name()))
 }
